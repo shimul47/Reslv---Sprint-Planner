@@ -2,7 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import mongoose from "mongoose";
-
+import authRoutes from "./routes/auth.js";
 dotenv.config();
 
 const app = express();
@@ -11,6 +11,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Routes
+app.use("/api/auth", authRoutes);
+
 // Basic Route
 app.get("/", (req, res) => {
   res.send("API running perfectly!");
@@ -18,7 +21,7 @@ app.get("/", (req, res) => {
 
 // Database Connection & Server Startup
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/merndb";
+const MONGO_URI = process.env.MONGO_URI;
 
 mongoose
   .connect(MONGO_URI)

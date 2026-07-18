@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { NewTicketModal } from "../components/workspace/Overlays";
+// Optional: import { useAuth } from "../context/AuthContext"; // If using context instead of props
 
 function navIdFromPath(pathname) {
   if (pathname.startsWith("/tickets/escalations")) return "escalations";
@@ -10,10 +11,15 @@ function navIdFromPath(pathname) {
   return "inbox";
 }
 
-export default function AppShell({ onLogout }) {
+export default function AppShell({ onLogout, user }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showNewTicket, setShowNewTicket] = useState(false);
+
+  // Fallback check to see if user has administrative rights to access the sprint planner
+  const hasSprintAccess =
+    user?.roles?.some((role) => ["superadmin", "admin"].includes(role)) ??
+    false;
 
   // Determine current active application/view
   const isDashboard =
@@ -30,18 +36,33 @@ export default function AppShell({ onLogout }) {
     settings: "/tickets/settings",
   };
 
+  // Redirect unauthorized users away from sprint-planner back to dashboard
+  if (isSprintPlanner && !hasSprintAccess) {
+    navigate("/");
+    return null;
+  }
+
   // 1. Dashboard Hub/Launchpad View (Themed)
   if (isDashboard) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex flex-col text-[var(--color-foreground)]">
         <header className="px-8 py-5 border-b border-[var(--color-border)] flex justify-between items-center bg-[var(--background)]/80 backdrop-blur-sm">
           <h1 className="text-xl font-bold">Workspace Dashboard</h1>
-          <button
-            onClick={onLogout}
-            className="text-sm font-medium opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
-          >
-            Log out
-          </button>
+          <div className="flex items-center gap-4">
+            {user && (
+              <span className="text-sm opacity-60">
+                Logged in as:{" "}
+                <strong className="opacity-100">{user.name}</strong> (
+                {user.roles?.[0]})
+              </span>
+            )}
+            <button
+              onClick={onLogout}
+              className="text-sm font-medium opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              Log out
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 max-w-4xl w-full mx-auto p-8 mt-10">
@@ -49,7 +70,9 @@ export default function AppShell({ onLogout }) {
             Where would you like to go?
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div
+            className={`grid grid-cols-1 ${hasSprintAccess ? "md:grid-cols-2" : "max-w-md mx-auto"} gap-6`}
+          >
             {/* Ticket System Card */}
             <div
               onClick={() => navigate("/tickets/inbox")}
@@ -65,20 +88,22 @@ export default function AppShell({ onLogout }) {
               </p>
             </div>
 
-            {/* Sprint Planner Card */}
-            <div
-              onClick={() => navigate("/sprint-planner")}
-              className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
-            >
-              <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
-                📅
+            {/* Sprint Planner Card - Dynamic Visibility */}
+            {hasSprintAccess && (
+              <div
+                onClick={() => navigate("/sprint-planner")}
+                className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+              >
+                <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                  📅
+                </div>
+                <h3 className="text-xl font-bold mb-2">Sprint Planner</h3>
+                <p className="opacity-70 text-sm leading-relaxed">
+                  Organize your team's upcoming tasks, plan out sprints, and
+                  track development progress.
+                </p>
               </div>
-              <h3 className="text-xl font-bold mb-2">Sprint Planner</h3>
-              <p className="opacity-70 text-sm leading-relaxed">
-                Organize your team's upcoming tasks, plan out sprints, and track
-                development progress.
-              </p>
-            </div>
+            )}
           </div>
         </main>
       </div>
@@ -116,15 +141,18 @@ export default function AppShell({ onLogout }) {
             </h2>
           </div>
 
+          {/* Dynamic Switch Button depending on Authorization */}
           <div className="flex items-center">
             {isTickets ? (
-              <button
-                type="button"
-                onClick={() => navigate("/sprint-planner")}
-                className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
-              >
-                Switch to Sprint Planner &rarr;
-              </button>
+              hasSprintAccess && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/sprint-planner")}
+                  className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
+                >
+                  Switch to Sprint Planner &rarr;
+                </button>
+              )
             ) : (
               <button
                 type="button"

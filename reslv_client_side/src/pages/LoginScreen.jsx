@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 import {
   Activity,
   Eye,
@@ -9,27 +10,45 @@ import {
   Zap,
 } from "lucide-react";
 
-export default function LoginScreen({ onLogin }) {
+export default function LoginScreen() {
+  // 1. Pull the real login function from context instead of props
+  const { login } = useContext(AuthContext);
+
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [signup, setSignup] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const inp =
     "w-full px-4 py-2.5 rounded-xl border border-[rgba(128,128,200,0.2)] bg-[#F7F7FF] text-[13px] text-[#18182E] placeholder-[#C8C8E0] focus:outline-none focus:border-[#80A8FF] focus:bg-white focus:ring-2 focus:ring-[rgba(128,168,255,0.12)] transition-all";
 
-  const handleSubmit = (e) => {
+  // 2. Make handleSubmit async to handle the API call
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !pass.trim()) return;
+    if (!email.trim() || !pass.trim() || isLoading) return;
 
-    // Trigger the root authentication processor inside App.jsx
-    const loginSuccess = onLogin(email.trim(), pass.trim());
-    
-    if (!loginSuccess) {
-      setError("Invalid authorization credentials key.");
-    } else {
-      setError("");
+    if (signup) {
+      setError("Signup is not yet active. Please ask an admin for an account.");
+      return;
+    }
+
+    setError("");
+    setIsLoading(true);
+
+    try {
+      // 3. Await the backend login process
+      await login(email.trim(), pass.trim());
+      // App.jsx automatically redirects based on the user state updating!
+    } catch (err) {
+      // 4. Catch backend errors (e.g. 401 Unauthorized) and display them in your UI
+      setError(
+        err.response?.data?.message ||
+          "Invalid email or password. Please try again.",
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -141,7 +160,7 @@ export default function LoginScreen({ onLogin }) {
                 <input type="text" placeholder="Alex Kim" className={inp} />
               </div>
             )}
-            
+
             <div>
               <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
                 Work Email
@@ -152,16 +171,20 @@ export default function LoginScreen({ onLogin }) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 className={inp}
+                disabled={isLoading}
               />
             </div>
-            
+
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider">
                   Password
                 </label>
                 {!signup && (
-                  <button type="button" className="text-[12px] text-[#80A8FF] hover:text-[#5B8AEE] font-medium transition-colors cursor-pointer">
+                  <button
+                    type="button"
+                    className="text-[12px] text-[#80A8FF] hover:text-[#5B8AEE] font-medium transition-colors cursor-pointer"
+                  >
                     Forgot password?
                   </button>
                 )}
@@ -173,11 +196,13 @@ export default function LoginScreen({ onLogin }) {
                   onChange={(e) => setPass(e.target.value)}
                   placeholder="••••••••"
                   className={`${inp} pr-10`}
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#C8C8E0] hover:text-[#9898B8] transition-colors cursor-pointer"
+                  disabled={isLoading}
                 >
                   {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -192,13 +217,18 @@ export default function LoginScreen({ onLogin }) {
 
             <button
               type="submit"
-              className="w-full mt-2 py-2.5 text-white font-semibold rounded-xl text-[14px] transition-all shadow-xs cursor-pointer active:scale-98"
+              disabled={isLoading}
+              className="w-full mt-2 py-2.5 text-white font-semibold rounded-xl text-[14px] transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-70 disabled:cursor-not-allowed"
               style={{
                 background: "linear-gradient(135deg, #80A8FF, #7090EE)",
                 boxShadow: "0 4px 16px rgba(128,168,255,0.3)",
               }}
             >
-              {signup ? "Create Account" : "Sign In"}
+              {isLoading
+                ? "Processing..."
+                : signup
+                  ? "Create Account"
+                  : "Sign In"}
             </button>
           </form>
 
@@ -207,26 +237,39 @@ export default function LoginScreen({ onLogin }) {
               <p className="text-[11px] text-[#A8A8C0] text-center mb-2">
                 Demo credentials
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("agent@reslv.io");
+                      setPass("demo1234");
+                    }}
+                    className="flex-1 py-1.5 text-[12px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-lg hover:bg-[#E4E6FF] transition-colors cursor-pointer"
+                  >
+                    Agent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("admin@reslv.io");
+                      setPass("demo1234");
+                    }}
+                    className="flex-1 py-1.5 text-[12px] font-semibold text-[#2479B5] bg-[#E7F4FD] rounded-lg hover:bg-[#D8EEF8] transition-colors cursor-pointer"
+                  >
+                    Admin
+                  </button>
+                </div>
+                {/* Dynamic inclusion for Super Admin */}
                 <button
                   type="button"
                   onClick={() => {
-                    setEmail("agent@reslv.io");
+                    setEmail("superadmin@reslv.io");
                     setPass("demo1234");
                   }}
-                  className="flex-1 py-1.5 text-[12px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-lg hover:bg-[#E4E6FF] transition-colors cursor-pointer"
+                  className="w-full py-1.5 text-[12px] font-semibold text-[#6D28D9] bg-[#F3E8FF] rounded-lg hover:bg-[#E9D5FF] transition-colors cursor-pointer"
                 >
-                  Agent
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail("admin@reslv.io");
-                    setPass("demo1234");
-                  }}
-                  className="flex-1 py-1.5 text-[12px] font-semibold text-[#2479B5] bg-[#E7F4FD] rounded-lg hover:bg-[#D8EEF8] transition-colors cursor-pointer"
-                >
-                  Admin
+                  ⚡ Super Admin
                 </button>
               </div>
             </div>
