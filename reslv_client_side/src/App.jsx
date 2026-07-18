@@ -1,18 +1,23 @@
-import React, { useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import AppShell from './pages/AppShell';
-import LoginScreen from './pages/LoginScreen';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import { InboxView, EscalationsView } from './components/workspace/Views';
-import { ReportsView, SettingsView } from './components/workspace/Placeholders';
-import SprintPlannerPage from './pages/SprintPlannerPage';
+import React, { useState } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import AppShell from "./pages/AppShell";
+import LoginScreen from "./pages/LoginScreen";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import { InboxView, EscalationsView } from "./components/workspace/Views";
+import { ReportsView, SettingsView } from "./components/workspace/Placeholders";
+import SprintPlannerPage from "./pages/SprintPlannerPage";
 
 function RequireAuth({ authState, role, children }) {
   if (!authState.isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   if (role && authState.role !== role) {
-    return <Navigate to={authState.role === 'superadmin' ? '/admin' : '/tickets/inbox'} replace />;
+    return (
+      <Navigate
+        to={authState.role === "superadmin" ? "/admin" : "/dashboard"}
+        replace
+      />
+    );
   }
   return children;
 }
@@ -20,24 +25,24 @@ function RequireAuth({ authState, role, children }) {
 export default function App() {
   const [authState, setAuthState] = useState({
     isAuthenticated: false,
-    role: null // 'user' or 'superadmin'
+    role: null, // 'user' or 'superadmin'
   });
 
   const handleSystemLogin = (email, password) => {
     // Hidden back-door route detection
-    if (email === '12345' && password === '12345') {
+    if (email === "12345" && password === "12345") {
       setAuthState({
         isAuthenticated: true,
-        role: 'superadmin'
+        role: "superadmin",
       });
       return true;
     }
 
     // Fallback normal dashboard employee account simulation checking
-    if (email.includes('@') && password.length >= 4) {
+    if (email.includes("@") && password.length >= 4) {
       setAuthState({
         isAuthenticated: true,
-        role: 'user'
+        role: "user",
       });
       return true;
     }
@@ -55,7 +60,10 @@ export default function App() {
         path="/login"
         element={
           authState.isAuthenticated ? (
-            <Navigate to={authState.role === 'superadmin' ? '/admin' : '/tickets/inbox'} replace />
+            <Navigate
+              to={authState.role === "superadmin" ? "/admin" : "/dashboard"}
+              replace
+            />
           ) : (
             <LoginScreen onLogin={handleSystemLogin} />
           )
@@ -79,6 +87,7 @@ export default function App() {
         }
       />
 
+      {/* Main Authenticated Routes Wrapped in AppShell */}
       <Route
         path="/"
         element={
@@ -87,7 +96,13 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/tickets/inbox" replace />} />
+        {/* Redirect root to the dashboard explicitly */}
+        <Route index element={<Navigate to="/dashboard" replace />} />
+
+        {/* The AppShell handles rendering the actual dashboard UI for this path */}
+        <Route path="dashboard" element={null} />
+
+        {/* Sub-applications passed through the AppShell Outlet */}
         <Route path="tickets/inbox" element={<InboxView />} />
         <Route path="tickets/escalations" element={<EscalationsView />} />
         <Route path="tickets/reports" element={<ReportsView />} />
