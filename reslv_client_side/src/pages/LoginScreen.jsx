@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import {
   Activity,
   Eye,
@@ -7,24 +8,39 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
 
 export default function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [signup, setSignup] = useState(false);
+  const [error, setError] = useState("");
 
   const inp =
     "w-full px-4 py-2.5 rounded-xl border border-[rgba(128,128,200,0.2)] bg-[#F7F7FF] text-[13px] text-[#18182E] placeholder-[#C8C8E0] focus:outline-none focus:border-[#80A8FF] focus:bg-white focus:ring-2 focus:ring-[rgba(128,168,255,0.12)] transition-all";
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!email.trim() || !pass.trim()) return;
+
+    // Trigger the root authentication processor inside App.jsx
+    const loginSuccess = onLogin(email.trim(), pass.trim());
+    
+    if (!loginSuccess) {
+      setError("Invalid authorization credentials key.");
+    } else {
+      setError("");
+    }
+  };
+
   return (
     <div
-      className="h-screen flex overflow-hidden"
+      className="h-screen w-full flex overflow-hidden bg-white text-left"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
+      {/* LEFT DESIGN SIDEBAR SECTION */}
       <div
-        className="w-[46%] flex-shrink-0 flex flex-col justify-between p-10 relative overflow-hidden"
+        className="w-[46%] flex-shrink-0 flex flex-col justify-between p-10 relative overflow-hidden select-none"
         style={{
           background:
             "linear-gradient(145deg, #C8C8FF 0%, #CEB5FF 40%, #9DC8E8 100%)",
@@ -43,7 +59,7 @@ export default function LoginScreen({ onLogin }) {
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-14">
-            <div className="w-10 h-10 rounded-2xl bg-white/25 backdrop-blur-sm flex items-center justify-center shadow-sm">
+            <div className="w-10 h-10 rounded-2xl bg-white/25 backdrop-blur-xs flex items-center justify-center shadow-xs">
               <Zap size={18} className="text-white" />
             </div>
             <span className="text-[22px] font-bold text-white tracking-tight">
@@ -51,13 +67,13 @@ export default function LoginScreen({ onLogin }) {
             </span>
           </div>
 
-          <p className="text-[32px] font-extrabold tracking-tight text-white leading-tight max-w-[320px] text-left">
+          <p className="text-[32px] font-extrabold tracking-tight text-white leading-tight max-w-[320px]">
             Support that
             <br />
             feels human.
           </p>
 
-          <p className="mt-4 text-[14px] text-white/65 leading-relaxed max-w-[320px] text-left">
+          <p className="mt-4 text-[14px] text-white/65 leading-relaxed max-w-[320px]">
             A calm, thoughtful workspace to resolve what matters — without the
             noise.
           </p>
@@ -99,6 +115,7 @@ export default function LoginScreen({ onLogin }) {
         </div>
       </div>
 
+      {/* RIGHT AUTH CONTROL FORM SECTION */}
       <div className="flex-1 flex items-center justify-center bg-white px-12">
         <div className="w-full max-w-[340px]">
           <div className="mb-8">
@@ -115,34 +132,36 @@ export default function LoginScreen({ onLogin }) {
             </p>
           </div>
 
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {signup && (
               <div>
                 <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
                   Full Name
                 </label>
-                <input placeholder="Alex Kim" className={inp} />
+                <input type="text" placeholder="Alex Kim" className={inp} />
               </div>
             )}
+            
             <div>
               <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
                 Work Email
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 className={inp}
               />
             </div>
+            
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider">
                   Password
                 </label>
                 {!signup && (
-                  <button className="text-[12px] text-[#80A8FF] hover:text-[#5B8AEE] font-medium transition-colors">
+                  <button type="button" className="text-[12px] text-[#80A8FF] hover:text-[#5B8AEE] font-medium transition-colors cursor-pointer">
                     Forgot password?
                   </button>
                 )}
@@ -156,25 +175,32 @@ export default function LoginScreen({ onLogin }) {
                   className={`${inp} pr-10`}
                 />
                 <button
+                  type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#C8C8E0] hover:text-[#9898B8] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#C8C8E0] hover:text-[#9898B8] transition-colors cursor-pointer"
                 >
                   {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
-          </div>
 
-          <button
-            onClick={onLogin}
-            className="w-full mt-6 py-2.5 text-white font-semibold rounded-xl text-[14px] transition-all shadow-sm"
-            style={{
-              background: "linear-gradient(135deg, #80A8FF, #7090EE)",
-              boxShadow: "0 4px 16px rgba(128,168,255,0.3)",
-            }}
-          >
-            {signup ? "Create Account" : "Sign In"}
-          </button>
+            {error && (
+              <div className="text-xs font-semibold text-red-500 bg-red-50 p-2.5 rounded-xl border border-red-100 animate-pulse">
+                ⚠️ {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full mt-2 py-2.5 text-white font-semibold rounded-xl text-[14px] transition-all shadow-xs cursor-pointer active:scale-98"
+              style={{
+                background: "linear-gradient(135deg, #80A8FF, #7090EE)",
+                boxShadow: "0 4px 16px rgba(128,168,255,0.3)",
+              }}
+            >
+              {signup ? "Create Account" : "Sign In"}
+            </button>
+          </form>
 
           {!signup && (
             <div className="mt-4 p-3 bg-[#F7F7FF] rounded-xl border border-[rgba(128,128,200,0.14)]">
@@ -183,20 +209,22 @@ export default function LoginScreen({ onLogin }) {
               </p>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setEmail("agent@reslv.io");
                     setPass("demo1234");
                   }}
-                  className="flex-1 py-1.5 text-[12px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-lg hover:bg-[#E4E6FF] transition-colors"
+                  className="flex-1 py-1.5 text-[12px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-lg hover:bg-[#E4E6FF] transition-colors cursor-pointer"
                 >
                   Agent
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setEmail("admin@reslv.io");
                     setPass("demo1234");
                   }}
-                  className="flex-1 py-1.5 text-[12px] font-semibold text-[#2479B5] bg-[#E7F4FD] rounded-lg hover:bg-[#D8EEF8] transition-colors"
+                  className="flex-1 py-1.5 text-[12px] font-semibold text-[#2479B5] bg-[#E7F4FD] rounded-lg hover:bg-[#D8EEF8] transition-colors cursor-pointer"
                 >
                   Admin
                 </button>
@@ -207,8 +235,9 @@ export default function LoginScreen({ onLogin }) {
           <p className="text-center text-[12px] text-[#B0B0CC] mt-5">
             {signup ? "Already have an account? " : "Don't have an account? "}
             <button
+              type="button"
               onClick={() => setSignup((v) => !v)}
-              className="text-[#80A8FF] hover:text-[#5B8AEE] font-semibold transition-colors"
+              className="text-[#80A8FF] hover:text-[#5B8AEE] font-semibold transition-colors cursor-pointer"
             >
               {signup ? "Sign in" : "Sign up"}
             </button>
