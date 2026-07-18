@@ -1,94 +1,69 @@
-import { Bell, BarChart2, Settings } from "lucide-react";
-import { useState } from "react";
-import { APP_DATE } from "../data/workspaceData.js";
-import {
-  NotifDropdown,
-  NewTicketModal,
-} from "../components/workspace/Overlays.jsx";
-import Sidebar from "../components/Sidebar.jsx";
-import {
-  EscalationsView,
-  InboxView,
-  StatsBar,
-} from "../components/workspace/Views.jsx";
+import React, { useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
+import { NewTicketModal } from '../components/workspace/Overlays';
+function navIdFromPath(pathname) {
+  if (pathname.startsWith('/tickets/escalations')) return 'escalations';
+  if (pathname.startsWith('/tickets/reports')) return 'reports';
+  if (pathname.startsWith('/tickets/settings')) return 'settings';
+  return 'inbox';
+}
 
 export default function AppShell({ onLogout }) {
-  const [nav, setNav] = useState("inbox");
-  const [showNew, setShowNew] = useState(false);
-  const [showNotif, setShowNotif] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showNewTicket, setShowNewTicket] = useState(false);
+
+  const onSprintPlanner = location.pathname.startsWith('/sprint-planner');
+  const activeNav = navIdFromPath(location.pathname);
+
+  const NAV_TO_PATH = {
+    inbox: '/tickets/inbox',
+    escalations: '/tickets/escalations',
+    reports: '/tickets/reports',
+    settings: '/tickets/settings',
+  };
 
   return (
-    <div
-      className="h-screen flex overflow-hidden bg-[#F7F7FF]"
-      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
-    >
+    <div className="flex min-h-screen w-full bg-[var(--background)] overflow-hidden">
+      {/* 1. Sidebar Nav Component Layer */}
       <Sidebar
-        nav={nav}
-        setNav={setNav}
-        onNew={() => setShowNew(true)}
+        nav={activeNav}
+        setNav={(id) => navigate(NAV_TO_PATH[id] ?? '/tickets/inbox')}
+        onNew={() => setShowNewTicket(true)}
         onLogout={onLogout}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="flex-shrink-0 flex items-center justify-between px-5 py-1.5 border-b border-[rgba(128,128,200,0.08)] bg-white h-15">
-          {" "}
-          <div className="flex items-center gap-1 leading-none">
-            <h1 className="text-[12px] font-semibold text-[#18182E] leading-none">
-              {nav === "inbox"
-                ? "Ticket Inbox"
-                : nav === "escalations"
-                  ? "Escalations"
-                  : nav.charAt(0).toUpperCase() + nav.slice(1)}
-            </h1>
-            <p className="text-[9px] text-[#B0B0CC] leading-none">{APP_DATE}</p>
-          </div>
-          <div className="relative">
+      {/* 2. Main Layout Shell Workspace Container */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-shrink-0 flex items-center justify-end px-6 py-3">
+          {!onSprintPlanner ? (
             <button
-              onClick={() => setShowNotif((v) => !v)}
-              className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[#A8A8C0] hover:bg-[#EEF0FF] hover:text-[#5B5BD6] transition-colors"
+              type="button"
+              onClick={() => navigate('/sprint-planner')}
+              className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
             >
-              <Bell size={14} />
-              <span className="absolute top-1.25 right-1.25 w-1.5 h-1.5 bg-[#CC1836] rounded-full border border-white" />
+              📅 Open Sprint Planner
             </button>
-            {showNotif && <NotifDropdown onClose={() => setShowNotif(false)} />}
-          </div>
-        </header>
-
-        {nav === "inbox" && <StatsBar />}
-
-        <div className="flex-1 overflow-hidden flex min-h-0">
-          {nav === "inbox" && <InboxView />}
-          {nav === "escalations" && <EscalationsView />}
-          {nav === "reports" && (
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-4">
-                <BarChart2 size={24} className="text-[#CEB5FF]" />
-              </div>
-              <p className="text-[14px] font-semibold text-[#18182E]">
-                Reports
-              </p>
-              <p className="text-[13px] text-[#9898B8] mt-1">
-                Analytics dashboard coming soon.
-              </p>
-            </div>
-          )}
-          {nav === "settings" && (
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-4">
-                <Settings size={24} className="text-[#CEB5FF]" />
-              </div>
-              <p className="text-[14px] font-semibold text-[#18182E]">
-                Settings
-              </p>
-              <p className="text-[13px] text-[#9898B8] mt-1">
-                Workspace configuration coming soon.
-              </p>
-            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/tickets/inbox')}
+              className="bg-[var(--color-muted)] text-[var(--color-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:bg-[var(--color-secondary)] transition-all cursor-pointer"
+            >
+              &larr; Back to Tickets System
+            </button>
           )}
         </div>
-      </div>
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Outlet />
+        </div>
 
-      {showNew && <NewTicketModal onClose={() => setShowNew(false)} />}
+      </main>
+
+      {showNewTicket && (
+        <NewTicketModal onClose={() => setShowNewTicket(false)} />
+      )}
     </div>
   );
 }
