@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import mongoose from "mongoose";
 import authRoutes from "./routes/auth.js";
+import superadminRoutes from "./routes/superadmin.js";
 dotenv.config();
 
 const app = express();
@@ -13,7 +14,7 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
-
+app.use("/api/superadmin", superadminRoutes);
 // Basic Route
 app.get("/", (req, res) => {
   res.send("API running perfectly!");

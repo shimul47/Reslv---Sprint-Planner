@@ -8,8 +8,8 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import { InboxView, EscalationsView } from "./components/workspace/Views";
 import { ReportsView, SettingsView } from "./components/workspace/Placeholders";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
+import TeamManagement from "./pages/TeamManagement";
 
-// Upgraded RequireAuth to allow structural workspace routing checks
 function RequireAuth({ allowedRoles, children }) {
   const { user, loading } = useContext(AuthContext);
 
@@ -29,7 +29,6 @@ function RequireAuth({ allowedRoles, children }) {
   if (allowedRoles && allowedRoles.length > 0) {
     const hasRole = user.roles?.some((role) => allowedRoles.includes(role));
     if (!hasRole) {
-      // Send them to their appropriate workspace view root
       return (
         <Navigate
           to={user.roles?.includes("superadmin") ? "/admin" : "/dashboard"}
@@ -60,8 +59,6 @@ export default function App() {
           )
         }
       />
-
-      {/* SUPERADMIN ROUTE */}
       <Route
         path="/admin"
         element={
@@ -78,34 +75,25 @@ export default function App() {
           </RequireAuth>
         }
       />
-
-      {/* WORKER / TENANT ROUTES - Added "superadmin" so they can visit the tickets system */}
       <Route
         path="/"
         element={
           <RequireAuth
             allowedRoles={["superadmin", "admin", "agent", "sprint_planner"]}
           >
-            {/* 👈 Explicitly passing context profile and logout down to your updated shell layout */}
             <AppShell user={user} onLogout={logout} />
           </RequireAuth>
         }
       >
-        {/* Redirect root to the dashboard explicitly */}
         <Route index element={<Navigate to="/dashboard" replace />} />
-
-        {/* The AppShell handles rendering the actual dashboard UI for this path */}
         <Route path="dashboard" element={null} />
-
-        {/* Sub-applications passed through the AppShell Outlet */}
         <Route path="tickets/inbox" element={<InboxView />} />
         <Route path="tickets/escalations" element={<EscalationsView />} />
         <Route path="tickets/reports" element={<ReportsView />} />
         <Route path="tickets/settings" element={<SettingsView />} />
         <Route path="sprint-planner" element={<SprintPlannerPage />} />
+        <Route path="admin/team" element={<TeamManagement />} />
       </Route>
-
-      {/* Fallback Catch-All */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

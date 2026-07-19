@@ -1,67 +1,77 @@
-const bcrypt = require("bcryptjs");
+// controllers/adminController.js
+const bcrypt = require("bcrypt"); // Assuming you use bcrypt for hashing
 const Company = require("../models/Company");
 const User = require("../models/User");
 
-exports.createTenant = async (req, res) => {
+const createTenant = async (req, res) => {
   try {
     const {
       companyName,
-      companyCode, // Now pulling the unique ID from the request
+      companyCode,
       adminName,
       adminEmail,
       adminPassword,
+      inviteLimit,
     } = req.body;
 
-    // 1. Check if the company code is already taken
+    // 1. Validate inputs (basic check)
+    if (!companyName || !companyCode || !adminEmail || !adminPassword) {
+      return res.status(400).json({ error: "Missing required fields." });
+    }
+
+    // 2. Check for existing company code or admin email to prevent duplicates
     const existingCompany = await Company.findOne({
       companyCode: companyCode.toLowerCase(),
     });
     if (existingCompany) {
-      return res
-        .status(400)
-        .json({
-          message: "Company code is already in use. Please choose another.",
-        });
+      return res.status(409).json({ error: "Company code already in use." });
     }
 
-    // 2. Check if the admin email is already registered
     const existingUser = await User.findOne({ email: adminEmail });
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "Admin email already exists in the system." });
+      return res.status(409).json({ error: "Admin email already exists." });
     }
 
-    // 3. Create the new Company
+    // 3. Create the Company
     const newCompany = await Company.create({
       name: companyName,
-      companyCode,
+      companyCode: companyCode.toLowerCase(),
+      isActive: true,
     });
 
-    // 4. Hash the password for the new admin
+    // 4. Hash the password and create the Admin User
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(adminPassword, salt);
 
-    // 5. Create the Admin user permanently linked to the new company
     const newAdmin = await User.create({
       name: adminName,
       email: adminEmail,
       password: hashedPassword,
-      companyId: newCompany._id,
-      roles: ["admin"],
+      roles: ["admin"], // Assign the admin role per your schema
+      companyId: newCompany._id, // Link to the newly created company
+      inviteLimit: inviteLimit || 5, // Default limit if none provided
     });
 
+    // 5. Return success response (excluding the password)
     res.status(201).json({
-      message: "Company and Admin created successfully!",
-      company: newCompany,
-      admin: {
-        id: newAdmin._id,
-        name: newAdmin.name,
-        email: newAdmin.email,
+      message: "Tenant successfully provisioned.",
+      tenant: {
+        companyId: newCompany._id,
+        companyName: newCompany.name,
+        companyCode: newCompany.companyCode,
+        adminId: newAdmin._id,
+        adminEmail: newAdmin.email,
+        inviteLimit: newAdmin.inviteLimit,
       },
     });
   } catch (error) {
-    console.error("Error creating tenant:", error);
-    res.status(500).json({ message: "Server error while creating tenant" });
+    console.error("Error provisioning tenant:", error);
+    res
+      .status(500)
+      .json({ error: "Internal server error during tenant creation." });
   }
+};
+
+module.exports = {
+  createTenant,
 };

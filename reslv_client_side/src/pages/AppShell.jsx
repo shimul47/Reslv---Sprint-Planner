@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { NewTicketModal } from "../components/workspace/Overlays";
-// Optional: import { useAuth } from "../context/AuthContext"; // If using context instead of props
 
 function navIdFromPath(pathname) {
   if (pathname.startsWith("/tickets/escalations")) return "escalations";
@@ -16,8 +15,8 @@ export default function AppShell({ onLogout, user }) {
   const navigate = useNavigate();
   const [showNewTicket, setShowNewTicket] = useState(false);
 
-  // Fallback check to see if user has administrative rights to access the sprint planner
-  const hasSprintAccess =
+  // Determine if the user has admin rights (can access Sprint Planner & Team Management)
+  const isAdmin =
     user?.roles?.some((role) => ["superadmin", "admin"].includes(role)) ??
     false;
 
@@ -26,6 +25,9 @@ export default function AppShell({ onLogout, user }) {
     location.pathname === "/" || location.pathname === "/dashboard";
   const isSprintPlanner = location.pathname.startsWith("/sprint-planner");
   const isTickets = location.pathname.startsWith("/tickets");
+
+  // We'll also check if we are in the new admin section
+  const isAdminSection = location.pathname.startsWith("/admin");
 
   const activeNav = navIdFromPath(location.pathname);
 
@@ -36,8 +38,8 @@ export default function AppShell({ onLogout, user }) {
     settings: "/tickets/settings",
   };
 
-  // Redirect unauthorized users away from sprint-planner back to dashboard
-  if (isSprintPlanner && !hasSprintAccess) {
+  // Redirect unauthorized users away from restricted areas back to dashboard
+  if ((isSprintPlanner || isAdminSection) && !isAdmin) {
     navigate("/");
     return null;
   }
@@ -65,13 +67,13 @@ export default function AppShell({ onLogout, user }) {
           </div>
         </header>
 
-        <main className="flex-1 max-w-4xl w-full mx-auto p-8 mt-10">
+        <main className="flex-1 max-w-5xl w-full mx-auto p-8 mt-10">
           <h2 className="text-3xl font-semibold mb-8">
             Where would you like to go?
           </h2>
 
           <div
-            className={`grid grid-cols-1 ${hasSprintAccess ? "md:grid-cols-2" : "max-w-md mx-auto"} gap-6`}
+            className={`grid grid-cols-1 ${isAdmin ? "md:grid-cols-3" : "max-w-md mx-auto"} gap-6`}
           >
             {/* Ticket System Card */}
             <div
@@ -88,8 +90,8 @@ export default function AppShell({ onLogout, user }) {
               </p>
             </div>
 
-            {/* Sprint Planner Card - Dynamic Visibility */}
-            {hasSprintAccess && (
+            {/* Sprint Planner Card - Admin Only */}
+            {isAdmin && (
               <div
                 onClick={() => navigate("/sprint-planner")}
                 className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
@@ -104,13 +106,30 @@ export default function AppShell({ onLogout, user }) {
                 </p>
               </div>
             )}
+
+            {/* NEW: Team Management Card - Admin Only */}
+            {isAdmin && (
+              <div
+                onClick={() => navigate("/admin/team")}
+                className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+              >
+                <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                  👥
+                </div>
+                <h3 className="text-xl font-bold mb-2">Team Management</h3>
+                <p className="opacity-70 text-sm leading-relaxed">
+                  Invite teammates via email, assign workspace roles, and
+                  control access permissions.
+                </p>
+              </div>
+            )}
           </div>
         </main>
       </div>
     );
   }
 
-  // 2. Sub-system Shell View (Tickets or Sprint Planner)
+  // 2. Sub-system Shell View (Tickets, Sprint Planner, or Admin Team View)
   return (
     <div className="flex min-h-screen w-full bg-[var(--background)] overflow-hidden text-[var(--color-foreground)]">
       {/* Sidebar - Only renders when inside the Tickets System */}
@@ -137,14 +156,16 @@ export default function AppShell({ onLogout, user }) {
             </button>
             <div className="h-5 w-px bg-[var(--color-border)]"></div>
             <h2 className="text-sm font-bold flex items-center gap-2">
-              {isTickets ? "🎫 Ticket System" : "📅 Sprint Planner"}
+              {isTickets && "🎫 Ticket System"}
+              {isSprintPlanner && "📅 Sprint Planner"}
+              {isAdminSection && "👥 Team Management"}
             </h2>
           </div>
 
           {/* Dynamic Switch Button depending on Authorization */}
           <div className="flex items-center">
             {isTickets ? (
-              hasSprintAccess && (
+              isAdmin && (
                 <button
                   type="button"
                   onClick={() => navigate("/sprint-planner")}

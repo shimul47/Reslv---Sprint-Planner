@@ -5,10 +5,14 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    roles: [{ type: String, required: true }], // 👈 Must be an array named "roles"
+    roles: { type: [String], default: ["admin"] },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
+    companyName: { type: String },
+    inviteLimit: { type: Number, default: 5 },
   },
-  { timestamps: true, collection: "users" },
+  { timestamps: true },
 );
 
-const User = mongoose.model("User", userSchema);
+const User = mongoose.models.User || mongoose.model("User", userSchema);
+
 export default User;
