@@ -99,3 +99,85 @@ export const createAdminNode = async (req, res) => {
       .json({ error: "PROVISION_FAILED: Internal database error." });
   }
 };
+
+// ==========================================
+// UPDATE AN EXISTING ADMIN
+// ==========================================
+export const updateAdminNode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, companyId, inviteLimit } = req.body;
+
+    const admin = await User.findById(id);
+    if (!admin || !admin.roles.includes("admin")) {
+      return res.status(404).json({ error: "ORPHAN_NODE: Admin not found." });
+    }
+
+    // If email is being changed, make sure it's not taken by another user
+    if (email && email !== admin.email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: id } });
+      if (existingUser) {
+        return res
+          .status(409)
+          .json({ error: "Email is already registered to a node." });
+      }
+      admin.email = email;
+    }
+
+    // If companyId is being changed, validate the new company exists
+    if (companyId && companyId !== String(admin.companyId)) {
+      const company = await Company.findById(companyId);
+      if (!company) {
+        return res
+          .status(404)
+          .json({ error: "ORPHAN_NODE: Target company not found." });
+      }
+      admin.companyId = company._id;
+      admin.companyName = company.name;
+    }
+
+    if (name !== undefined) admin.name = name;
+    if (inviteLimit !== undefined) admin.inviteLimit = inviteLimit;
+
+    await admin.save();
+
+    res.status(200).json({
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        companyId: admin.companyId,
+        companyName: admin.companyName,
+        level: "SysOp Admin",
+      },
+    });
+  } catch (error) {
+    console.error("Admin Update Error:", error);
+    res
+      .status(400)
+      .json({ error: "UPDATE_FAILED: Invalid admin data." });
+  }
+};
+
+// ==========================================
+// DELETE AN ADMIN
+// ==========================================
+export const deleteAdminNode = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const admin = await User.findById(id);
+    if (!admin || !admin.roles.includes("admin")) {
+      return res.status(404).json({ error: "ORPHAN_NODE: Admin not found." });
+    }
+
+    await User.findByIdAndDelete(id);
+
+    res.status(200).json({ message: "Admin deleted successfully.", id });
+  } catch (error) {
+    console.error("Admin Deletion Error:", error);
+    res
+      .status(500)
+      .json({ error: "DELETE_FAILED: Could not remove admin." });
+  }
+};
