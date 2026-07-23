@@ -131,7 +131,7 @@ export default function AppShell({ onLogout, user }) {
 
   // 2. Sub-system Shell View (Tickets, Sprint Planner, or Admin Team View)
   return (
-    <div className="flex min-h-screen w-full bg-[var(--background)] overflow-hidden text-[var(--color-foreground)]">
+    <div className="flex h-screen w-full bg-[var(--background)] overflow-hidden text-[var(--color-foreground)]">
       {/* Sidebar - Only renders when inside the Tickets System */}
       {isTickets && (
         <Sidebar
