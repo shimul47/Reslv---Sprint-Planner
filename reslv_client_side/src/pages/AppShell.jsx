@@ -25,6 +25,7 @@ export default function AppShell({ onLogout, user }) {
     location.pathname === "/" || location.pathname === "/dashboard";
   const isSprintPlanner = location.pathname.startsWith("/sprint-planner");
   const isTickets = location.pathname.startsWith("/tickets");
+  const isBilling = location.pathname.startsWith("/billing");
 
   // We'll also check if we are in the new admin section
   const isAdminSection = location.pathname.startsWith("/admin");
@@ -39,7 +40,7 @@ export default function AppShell({ onLogout, user }) {
   };
 
   // Redirect unauthorized users away from restricted areas back to dashboard
-  if ((isSprintPlanner || isAdminSection) && !isAdmin) {
+  if ((isSprintPlanner || isAdminSection || isBilling) && !isAdmin) {
     navigate("/");
     return null;
   }
@@ -73,7 +74,7 @@ export default function AppShell({ onLogout, user }) {
           </h2>
 
           <div
-            className={`grid grid-cols-1 ${isAdmin ? "md:grid-cols-3" : "max-w-md mx-auto"} gap-6`}
+            className={`grid grid-cols-1 ${isAdmin ? "md:grid-cols-2 lg:grid-cols-4" : "max-w-md mx-auto"} gap-6`}
           >
             {/* Ticket System Card */}
             <div
@@ -123,6 +124,23 @@ export default function AppShell({ onLogout, user }) {
                 </p>
               </div>
             )}
+
+            {/* NEW: Billing & Subscription Card - Admin Only */}
+            {isAdmin && (
+              <div
+                onClick={() => navigate("/billing")}
+                className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+              >
+                <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                  💳
+                </div>
+                <h3 className="text-xl font-bold mb-2">Billing & Subscription</h3>
+                <p className="opacity-70 text-sm leading-relaxed">
+                  Manage your subscription plan, view invoices, and update
+                  payment details.
+                </p>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -159,6 +177,7 @@ export default function AppShell({ onLogout, user }) {
               {isTickets && "🎫 Ticket System"}
               {isSprintPlanner && "📅 Sprint Planner"}
               {isAdminSection && "👥 Team Management"}
+              {isBilling && "💳 Billing & Subscription"}
             </h2>
           </div>
 

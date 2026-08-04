@@ -9,6 +9,7 @@ import { InboxView, EscalationsView } from "./components/workspace/Views";
 import { ReportsView, SettingsView } from "./components/workspace/Placeholders";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
 import TeamManagement from "./pages/TeamManagement";
+import BillingPage from "./pages/BillingPage";
 
 function RequireAuth({ allowedRoles, children }) {
   const { user, loading } = useContext(AuthContext);
@@ -93,6 +94,9 @@ export default function App() {
         <Route path="tickets/settings" element={<SettingsView />} />
         <Route path="sprint-planner" element={<SprintPlannerPage />} />
         <Route path="admin/team" element={<TeamManagement />} />
+        <Route path="billing" element={<BillingPage />} />
+        <Route path="billing/success" element={<BillingPage />} />
+        <Route path="billing/cancelled" element={<BillingPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
