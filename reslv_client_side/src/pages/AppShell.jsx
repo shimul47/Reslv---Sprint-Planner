@@ -1,28 +1,214 @@
-import React from 'react';
-import SprintBoard from '../components/SprintBoard';
-import GoogleCalendarConnect from '../components/GoogleCalendarConnect';
+import React, { useEffect, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import Sidebar from "../components/Sidebar";
+import { NewTicketModal } from "../components/workspace/Overlays";
 
-export default function SprintPlannerPage() {
+function navIdFromPath(pathname) {
+  if (pathname.startsWith("/tickets/escalations")) return "escalations";
+  if (pathname.startsWith("/tickets/reports")) return "reports";
+  if (pathname.startsWith("/tickets/settings")) return "settings";
+  return "inbox";
+}
+
+export default function AppShell({ onLogout, user }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showNewTicket, setShowNewTicket] = useState(false);
+
+  const isAdmin =
+    user?.roles?.some((role) => ["superadmin", "admin"].includes(role)) ?? false;
+
+  const isDashboard =
+    location.pathname === "/" || location.pathname === "/dashboard";
+  const isSprintPlanner = location.pathname.startsWith("/sprint-planner");
+  const isTickets = location.pathname.startsWith("/tickets");
+  const isBilling = location.pathname.startsWith("/billing");
+  const isAdminSection = location.pathname.startsWith("/admin");
+
+  const activeNav = navIdFromPath(location.pathname);
+
+  const NAV_TO_PATH = {
+    inbox: "/tickets/inbox",
+    escalations: "/tickets/escalations",
+    reports: "/tickets/reports",
+    settings: "/tickets/settings",
+  };
+
+  const isRestrictedForUser = (isSprintPlanner || isAdminSection || isBilling) && !isAdmin;
+  useEffect(() => {
+    if (isRestrictedForUser) {
+      navigate("/");
+    }
+  }, [isRestrictedForUser, navigate]);
+
+  if (isRestrictedForUser) {
+    return null;
+  }
+
+  // 1. Dashboard Hub
+  if (isDashboard) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex flex-col text-[var(--color-foreground)]">
+        <header className="px-8 py-5 border-b border-[var(--color-border)] flex justify-between items-center bg-[var(--background)]/80 backdrop-blur-sm">
+          <h1 className="text-xl font-bold">Workspace Dashboard</h1>
+          <div className="flex items-center gap-4">
+            {user && (
+              <span className="text-sm opacity-60">
+                Logged in as:{" "}
+                <strong className="opacity-100">{user.name}</strong> (
+                {user.roles?.[0]})
+              </span>
+            )}
+            <button
+              onClick={onLogout}
+              className="text-sm font-medium opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              Log out
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-5xl w-full mx-auto p-8 mt-10">
+          <h2 className="text-3xl font-semibold mb-8">
+            Where would you like to go?
+          </h2>
+
+          <div
+            className={`grid grid-cols-1 ${isAdmin ? "md:grid-cols-2 lg:grid-cols-4" : "max-w-md mx-auto"} gap-6`}
+          >
+            {/* Ticket System */}
+            <div
+              onClick={() => navigate("/tickets/inbox")}
+              className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+            >
+              <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                🎫
+              </div>
+              <h3 className="text-xl font-bold mb-2">Ticket System</h3>
+              <p className="opacity-70 text-sm leading-relaxed">
+                Manage customer support requests, view escalations, generate
+                reports, and control inbox settings.
+              </p>
+            </div>
+
+            {/* Sprint Planner - Admin Only */}
+            {isAdmin && (
+              <div
+                onClick={() => navigate("/sprint-planner")}
+                className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+              >
+                <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                  📅
+                </div>
+                <h3 className="text-xl font-bold mb-2">Sprint Planner</h3>
+                <p className="opacity-70 text-sm leading-relaxed">
+                  Organize your team's upcoming tasks, plan out sprints, and
+                  track development progress.
+                </p>
+              </div>
+            )}
+
+            {/* Team Management - Admin Only */}
+            {isAdmin && (
+              <div
+                onClick={() => navigate("/admin/team")}
+                className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+              >
+                <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                  👥
+                </div>
+                <h3 className="text-xl font-bold mb-2">Team Management</h3>
+                <p className="opacity-70 text-sm leading-relaxed">
+                  Invite teammates via email, assign workspace roles, and
+                  control access permissions.
+                </p>
+              </div>
+            )}
+
+            {/* Billing - Admin Only */}
+            {isAdmin && (
+              <div
+                onClick={() => navigate("/billing")}
+                className="bg-[var(--background)] p-8 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] hover:shadow-lg hover:border-[var(--color-primary)] hover:-translate-y-1 transition-all cursor-pointer group"
+              >
+                <div className="h-14 w-14 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-[var(--radius-md)] flex items-center justify-center text-3xl mb-5 group-hover:scale-110 transition-transform">
+                  💳
+                </div>
+                <h3 className="text-xl font-bold mb-2">Billing & Subscription</h3>
+                <p className="opacity-70 text-sm leading-relaxed">
+                  Manage your subscription plan, view invoices, and update
+                  payment details.
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // 2. Sub-system Shell
   return (
-    <div className="flex-1 w-full bg-[var(--background)] flex flex-col pt-4 overflow-hidden">
-      {/* Header */}
-      <div className="px-6 pr-48 text-left">
-        <h2 className="!mb-0 text-2xl font-bold tracking-tight text-[var(--text-h)]">
-          Sprint Workspace Board
-        </h2>
-        <p className="text-xs text-[var(--text)] mt-0.5">
-          Place or modify sticky item cards, departmental configurations, and mock layout workflows.
-        </p>
-      </div>
+    <div className="flex h-screen w-full bg-[var(--background)] overflow-hidden text-[var(--color-foreground)]">
+      {isTickets && (
+        <Sidebar
+          nav={activeNav}
+          setNav={(id) => navigate(NAV_TO_PATH[id] ?? "/tickets/inbox")}
+          onNew={() => setShowNewTicket(true)}
+          onLogout={onLogout}
+        />
+      )}
 
-      {/* Google Calendar Connect Widget */}
-      <div className="px-6 mt-4 pr-48">
-        <GoogleCalendarConnect />
-      </div>
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)] bg-[var(--background)]/80 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="text-sm font-semibold opacity-70 hover:opacity-100 transition-opacity flex items-center gap-2 cursor-pointer"
+            >
+              &larr; Dashboard
+            </button>
+            <div className="h-5 w-px bg-[var(--color-border)]"></div>
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              {isTickets && "🎫 Ticket System"}
+              {isSprintPlanner && "📅 Sprint Planner"}
+              {isAdminSection && "👥 Team Management"}
+              {isBilling && "💳 Billing & Subscription"}
+            </h2>
+          </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <SprintBoard />
-      </div>
+          <div className="flex items-center">
+            {isTickets ? (
+              isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/sprint-planner")}
+                  className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
+                >
+                  Switch to Sprint Planner &rarr;
+                </button>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("/tickets/inbox")}
+                className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
+              >
+                Switch to Tickets &rarr;
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+          <Outlet />
+        </div>
+      </main>
+
+      {showNewTicket && (
+        <NewTicketModal onClose={() => setShowNewTicket(false)} />
+      )}
     </div>
   );
 }
