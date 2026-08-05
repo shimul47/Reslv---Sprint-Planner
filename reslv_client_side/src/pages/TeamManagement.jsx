@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import api from "../api/axios";
+import { AuthContext } from "../context/AuthContext.jsx";
+
+const SUPERADMIN_COMPANY_SCOPE_KEY = "reslv.superadmin.companyScope";
 
 const AVAILABLE_ROLES = [
   {
@@ -16,15 +20,25 @@ const AVAILABLE_ROLES = [
     label: "Support Agent",
     description: "Access to Ticket System only.",
   },
+  {
+    id: "employee",
+    label: "Employee",
+    description: "Access to the workspace as a company member.",
+  },
 ];
 
 export default function TeamManagement() {
+  const { user } = useContext(AuthContext);
+  const isSuperAdmin = user?.roles?.includes("superadmin");
+
   // Start with an empty array since we are fetching from the DB now
   const [team, setTeam] = useState([]);
+  const [companies, setCompanies] = useState([]);
 
   // Form states
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("agent");
+  const [inviteCompanyId, setInviteCompanyId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Page status states
@@ -36,22 +50,27 @@ export default function TeamManagement() {
   useEffect(() => {
     const fetchTeam = async () => {
       try {
-        const token = localStorage.getItem("token"); // Or wherever you store your JWT
-
-        const response = await fetch("/api/team", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to load team data.");
-        }
-
-        const data = await response.json();
+        const [teamResponse, companyResponse] = await Promise.all([
+          api.get("/team"),
+          isSuperAdmin ? api.get("/superadmin/init") : Promise.resolve(null),
+        ]);
+        const data = teamResponse.data;
 
         // Expecting the backend to return an array of users and pending invites
         setTeam(data.team);
+
+        if (companyResponse?.data?.companies) {
+          setCompanies(companyResponse.data.companies);
+          const savedScope = localStorage.getItem(SUPERADMIN_COMPANY_SCOPE_KEY);
+          const matchingCompany = companyResponse.data.companies.find(
+            (company) => company._id === savedScope,
+          );
+          setInviteCompanyId(
+            matchingCompany?._id ||
+              companyResponse.data.companies[0]?._id ||
+              "",
+          );
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -60,7 +79,19 @@ export default function TeamManagement() {
     };
 
     fetchTeam();
-  }, []);
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || companies.length === 0) return;
+
+    const savedScope = localStorage.getItem(SUPERADMIN_COMPANY_SCOPE_KEY);
+    const companyExists = companies.some(
+      (company) => company._id === savedScope,
+    );
+    setInviteCompanyId(
+      savedScope && companyExists ? savedScope : companies[0]._id,
+    );
+  }, [isSuperAdmin, companies]);
 
   // 2. Handle sending an invite to the backend
   const handleInvite = async (e) => {
@@ -72,20 +103,13 @@ export default function TeamManagement() {
     setSuccess(null);
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/team/invite", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      const response = await api.post("/team/invite", {
+        email: inviteEmail,
+        role: inviteRole,
+        ...(isSuperAdmin ? { companyId: inviteCompanyId } : {}),
       });
 
-      const data = await response.json();
-
-      if (!response.ok)
-        throw new Error(data.message || "Failed to send invite.");
+      const data = response.data;
 
       // Add the new pending invite to the table instantly
       const newMember = {
@@ -99,6 +123,9 @@ export default function TeamManagement() {
       setTeam([...team, newMember]);
       setInviteEmail("");
       setInviteRole("agent");
+      if (isSuperAdmin && companies.length > 0) {
+        setInviteCompanyId((current) => current || companies[0]._id);
+      }
       setSuccess("Invitation sent successfully!");
 
       setTimeout(() => setSuccess(null), 3000);
@@ -144,12 +171,8 @@ export default function TeamManagement() {
           organize your team.
         </p>
       </div>
-
       {/* Invite Member Card */}
       <div className="bg-[var(--background)] p-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] mb-8">
-        <h2 className="text-xl font-semibold mb-4">Invite a Teammate</h2>
-
-        {/* Error / Success Messaging */}
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-[var(--radius-md)] text-sm">
             {error}
@@ -195,6 +218,25 @@ export default function TeamManagement() {
               ))}
             </select>
           </div>
+
+          {isSuperAdmin && (
+            <div className="w-full md:w-72">
+              <label className="block text-sm font-medium opacity-70 mb-1">
+                Company
+              </label>
+              <select
+                value={inviteCompanyId}
+                onChange={(e) => setInviteCompanyId(e.target.value)}
+                className="w-full bg-[var(--background)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-4 py-2 focus:outline-none focus:border-[var(--color-primary)] transition-colors cursor-pointer"
+              >
+                {companies.map((company) => (
+                  <option key={company._id} value={company._id}>
+                    {company.name} ({company.companyCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="w-full md:w-auto md:mt-6">
             <button
@@ -250,6 +292,11 @@ export default function TeamManagement() {
                       <div className="ml-4">
                         <div className="text-sm font-medium">{member.name}</div>
                         <div className="text-sm opacity-60">{member.email}</div>
+                        {member.companyName && (
+                          <div className="text-xs opacity-50">
+                            {member.companyName}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

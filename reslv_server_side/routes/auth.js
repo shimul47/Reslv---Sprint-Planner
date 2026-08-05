@@ -21,8 +21,12 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // Generate JWT Token
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1d" });
+    // Generate JWT Token with the role/company claims required by protected routes.
+    const token = jwt.sign(
+      { id: user._id, companyId: user.companyId, roles: user.roles },
+      JWT_SECRET,
+      { expiresIn: "1d" },
+    );
 
     res.json({
       message: "Login successful",
@@ -32,6 +36,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         roles: user.roles,
+        companyId: user.companyId,
       },
     });
   } catch (error) {
@@ -60,6 +65,7 @@ router.get("/me", async (req, res) => {
       name: user.name,
       email: user.email,
       roles: user.roles,
+      companyId: user.companyId,
     });
   } catch (error) {
     res.status(401).json({ message: "Invalid or expired token" });

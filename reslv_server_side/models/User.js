@@ -9,6 +9,11 @@ const userSchema = new mongoose.Schema(
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
     companyName: { type: String },
     inviteLimit: { type: Number, default: 5 },
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true },
 );

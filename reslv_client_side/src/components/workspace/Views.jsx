@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   Activity,
   BarChart2,
@@ -21,6 +21,9 @@ import { ESC_STEPS, TKT } from "../../data/workspaceData.js";
 import { Av, SLABar, SevBadge, StatusBadge, Tag } from "./Atoms.jsx";
 import { Bubble, EscalationStepper, TypingIndicator } from "./Conversation.jsx";
 import { CustomerPanel } from "./Overlays.jsx";
+import api from "../../api/axios.js";
+import { io } from "socket.io-client";
+import { AuthContext } from "../../context/AuthContext.jsx";
 
 function channelIcon(channel) {
   const props = { size: 12 };
@@ -87,11 +90,11 @@ export function TicketRow({ ticket, selected, onClick }) {
   );
 }
 
-export function StatsBar() {
-  const open = TKT.filter((t) => t.status === "open").length;
-  const inProg = TKT.filter((t) => t.status === "in-progress").length;
-  const escalated = TKT.filter((t) => t.status === "escalated").length;
-  const resolved = TKT.filter((t) => t.status === "resolved").length;
+export function StatsBar({ tickets = TKT }) {
+  const open = tickets.filter((t) => t.status === "open").length;
+  const inProg = tickets.filter((t) => t.status === "in-progress").length;
+  const escalated = tickets.filter((t) => t.status === "escalated").length;
+  const resolved = tickets.filter((t) => t.status === "resolved").length;
   const stats = [
     {
       label: "Open",
@@ -146,7 +149,7 @@ export function StatsBar() {
   );
 }
 
-export function TicketDetail({ ticket, showCX, setShowCX }) {
+export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
   const [tab, setTab] = useState("thread");
   const [msg, setMsg] = useState("");
   const [note, setNote] = useState("");
@@ -173,6 +176,12 @@ export function TicketDetail({ ticket, showCX, setShowCX }) {
   ];
   const btnGhost =
     "px-3 py-1.5 text-[12px] font-semibold text-[#6B6B90] border border-[rgba(128,128,200,0.2)] rounded-xl hover:border-[#80A8FF] hover:text-[#5B5BD6] transition-all";
+
+  const handleSend = async () => {
+    if (!msg.trim() || !onSendMessage) return;
+    await onSendMessage(ticket.id, msg.trim());
+    setMsg("");
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -281,6 +290,8 @@ export function TicketDetail({ ticket, showCX, setShowCX }) {
                   <Paperclip size={14} />
                 </button>
                 <button
+                  type="button"
+                  onClick={handleSend}
                   className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${msg ? "bg-[#80A8FF] text-white hover:bg-[#6B98EE] shadow-sm" : "bg-[#EEF0FF] text-[#C8C8E0]"}`}
                 >
                   <Send size={13} />
@@ -332,6 +343,8 @@ export function TicketDetail({ ticket, showCX, setShowCX }) {
                   <Paperclip size={14} />
                 </button>
                 <button
+                  type="button"
+                  onClick={handleSend}
                   className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${msg ? "bg-[#80A8FF] text-white hover:bg-[#6B98EE] shadow-sm" : "bg-[#EEF0FF] text-[#C8C8E0]"}`}
                 >
                   <Send size={13} />
@@ -435,26 +448,91 @@ export function TicketDetail({ ticket, showCX, setShowCX }) {
     </div>
   );
 }
+export function useTicketFeed(selectedTicketId) {
+  const { user } = useContext(AuthContext);
+  const [tickets, setTickets] = useState([]); // Initialized as completely empty
 
+  const refreshTickets = async () => {
+    try {
+      const response = await api.get("/tickets");
+      // Fallbacks handle variations in how your API might wrap the data
+      const data = response.data?.tickets || response.data || [];
+      setTickets(data);
+    } catch (error) {
+      console.error("Unable to refresh tickets:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user?.companyId) return;
+
+    // Fetch initial tickets
+    refreshTickets();
+
+    // Establish Socket.io connection
+    const socket = io(import.meta.env.VITE_WS_URL || "http://localhost:5000", {
+      transports: ["websocket"],
+    });
+
+    // Join company room for general updates
+    socket.emit("company:join", user.companyId);
+
+    // Join specific ticket room for live chat typing/messages
+    if (selectedTicketId) {
+      socket.emit("ticket:join", selectedTicketId);
+    }
+
+    // Sync state when real-time events occur
+    const sync = () => refreshTickets();
+    socket.on("ticket:created", sync);
+    socket.on("ticket:updated", sync);
+    socket.on("ticket:message", sync);
+
+    return () => socket.disconnect();
+  }, [user?.companyId, selectedTicketId]);
+
+  return { tickets, refreshTickets };
+}
 export function InboxView() {
-  const [selectedId, setSelectedId] = useState(TKT[0].id);
+  const [selectedId, setSelectedId] = useState(null);
+  const { tickets, refreshTickets } = useTicketFeed(selectedId);
+
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("all");
   const [channelF, setChannelF] = useState("all");
   const [showCX, setShowCX] = useState(false);
 
-  const filtered = TKT.filter((t) => {
+  // Auto-select the first real ticket only after the API data successfully loads
+  useEffect(() => {
+    if (tickets.length > 0 && !tickets.some((t) => t.id === selectedId)) {
+      setSelectedId(tickets[0].id);
+    }
+  }, [tickets, selectedId]);
+
+  // Filter directly from the dynamic tickets array
+  const filtered = tickets.filter((t) => {
     const q = search.toLowerCase();
+    // Optional chaining prevents crashes if backend data is missing fields
     const mq =
       !q ||
-      t.subject.toLowerCase().includes(q) ||
-      t.customer.name.toLowerCase().includes(q) ||
-      t.id.toLowerCase().includes(q);
+      t.subject?.toLowerCase().includes(q) ||
+      t.customer?.name?.toLowerCase().includes(q) ||
+      t.id?.toLowerCase().includes(q);
     const ms = statusF === "all" || t.status === statusF;
     const mc = channelF === "all" || t.channel === channelF;
     return mq && ms && mc;
   });
-  const selected = TKT.find((t) => t.id === selectedId);
+
+  const selected = tickets.find((t) => t.id === selectedId);
+
+  const handleSendMessage = async (ticketId, text) => {
+    try {
+      await api.post(`/tickets/${ticketId}/messages`, { text });
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    }
+  };
 
   return (
     <div className="flex flex-1 h-full overflow-hidden">
@@ -509,11 +587,13 @@ export function InboxView() {
             ))}
           </div>
         </div>
+
         <div className="px-4 py-2 flex-shrink-0">
           <span className="text-[10px] font-bold text-[#C8C8E0] uppercase tracking-widest">
             {filtered.length} ticket{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
+
         <div className="flex-1 overflow-y-auto">
           {filtered.map((t) => (
             <TicketRow
@@ -523,27 +603,32 @@ export function InboxView() {
               onClick={() => setSelectedId(t.id)}
             />
           ))}
+
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <div className="w-12 h-12 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-3">
                 <Search size={20} className="text-[#D3D3FF]" />
               </div>
               <p className="text-[13px] font-semibold text-[#6B6B90]">
-                No tickets match
+                {tickets.length === 0 ? "No tickets yet" : "No tickets match"}
               </p>
               <p className="text-[12px] text-[#C0C0D8] mt-1">
-                Try adjusting your search or filters
+                {tickets.length === 0
+                  ? "When customers reach out, they will appear here."
+                  : "Try adjusting your search or filters"}
               </p>
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setStatusF("all");
-                  setChannelF("all");
-                }}
-                className="mt-3 text-[12px] text-[#80A8FF] font-semibold hover:text-[#5B8AEE] transition-colors"
-              >
-                Clear all filters
-              </button>
+              {tickets.length > 0 && (
+                <button
+                  onClick={() => {
+                    setSearch("");
+                    setStatusF("all");
+                    setChannelF("all");
+                  }}
+                  className="mt-3 text-[12px] text-[#80A8FF] font-semibold hover:text-[#5B8AEE] transition-colors"
+                >
+                  Clear all filters
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -556,11 +641,13 @@ export function InboxView() {
               ticket={selected}
               showCX={showCX}
               setShowCX={setShowCX}
+              onSendMessage={handleSendMessage}
             />
           </div>
           {showCX && (
             <CustomerPanel
               cx={selected.customer}
+              tickets={tickets}
               onClose={() => setShowCX(false)}
             />
           )}
@@ -571,10 +658,12 @@ export function InboxView() {
             <Inbox size={26} className="text-[#CEB5FF]" />
           </div>
           <p className="text-[14px] font-semibold text-[#18182E]">
-            Select a ticket
+            {tickets.length === 0 ? "Your inbox is empty" : "Select a ticket"}
           </p>
           <p className="text-[13px] text-[#9898B8] mt-1 max-w-[220px] leading-relaxed">
-            Choose a ticket from the list to view the full conversation.
+            {tickets.length === 0
+              ? "You're all caught up! New inquiries will appear automatically."
+              : "Choose a ticket from the list to view the full conversation."}
           </p>
         </div>
       )}
@@ -583,8 +672,10 @@ export function InboxView() {
 }
 
 export function EscalationsView() {
-  const escalated = TKT.filter((t) => t.status === "escalated");
-  const all = TKT.filter(
+  const { tickets } = useTicketFeed();
+  const sourceTickets = tickets.length ? tickets : TKT;
+  const escalated = sourceTickets.filter((t) => t.status === "escalated");
+  const all = sourceTickets.filter(
     (t) => t.escalationStep > 0 || t.status === "escalated",
   );
   return (

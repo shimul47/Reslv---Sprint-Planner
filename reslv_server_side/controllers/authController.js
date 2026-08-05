@@ -38,7 +38,13 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
-    res.json(user);
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      roles: user.roles,
+      companyId: user.companyId,
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
