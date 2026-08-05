@@ -9,6 +9,13 @@ const userSchema = new mongoose.Schema(
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
     companyName: { type: String },
     inviteLimit: { type: Number, default: 5 },
+    googleCalendar: {
+  connected: { type: Boolean, default: false },
+  accessToken: { type: String },
+  refreshToken: { type: String },
+  expiryDate: { type: Number },
+  googleEmail: { type: String },
+},
   },
   { timestamps: true },
 );

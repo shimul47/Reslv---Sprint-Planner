@@ -5,13 +5,16 @@ import mongoose from "mongoose";
 import authRoutes from "./routes/auth.js";
 import superadminRoutes from "./routes/superadmin.js";
 import paymentRoutes, { handleWebhook } from "./routes/paymentRoutes.js";
+import calendarRoutes from "./routes/calendarRoutes.js";
+
 dotenv.config();
 
 const app = express();
 
 // Middleware
 app.use(cors());
-
+// ...
+app.use("/api/calendar", calendarRoutes);
 // Stripe webhook needs the RAW request body to verify the signature, so it
 // must be registered BEFORE express.json() and must not go through it.
 app.post(
