@@ -33,10 +33,10 @@ function notifIcon(name) {
   return NOTIF_ICON[name] || null;
 }
 
-export function CustomerPanel({ cx, onClose }) {
+export function CustomerPanel({ cx, tickets = [], onClose }) {
   const churn = CHURN_CFG[cx.churn];
   const plan = PLAN_CFG[cx.plan];
-  const rel = TKT.filter((t) => t.customer.id === cx.id).slice(0, 4);
+  const rel = tickets.filter((t) => t.customer.id === cx.id).slice(0, 4);
 
   return (
     <div className="w-[272px] flex-shrink-0 border-l border-[rgba(128,128,200,0.1)] bg-white flex flex-col overflow-hidden">

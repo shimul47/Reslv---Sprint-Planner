@@ -1,3 +1,4 @@
+import { useContext, useEffect, useState } from "react";
 import {
   ArrowRight,
   BarChart2,
@@ -8,27 +9,61 @@ import {
   Zap,
   Inbox,
 } from "lucide-react";
-import { APP_ORG, APP_TITLE, TKT } from "../data/workspaceData.js";
+import { io } from "socket.io-client";
+import { APP_ORG, APP_TITLE } from "../data/workspaceData.js";
 import { Av } from "./workspace/Atoms.jsx";
+import api from "../api/axios.js";
+import { AuthContext } from "../context/AuthContext.jsx";
 
 export default function Sidebar({ nav, setNav, onNew, onLogout }) {
-  const openCount = TKT.filter(
-    (t) => t.status === "open" || t.status === "in-progress",
-  ).length;
-  const escCount = TKT.filter((t) => t.status === "escalated").length;
+  const { user } = useContext(AuthContext);
+  const [counts, setCounts] = useState({ open: 0, escalated: 0 });
+
+  useEffect(() => {
+    const loadCounts = async () => {
+      try {
+        const response = await api.get("/tickets");
+        const tickets = response.data?.tickets || [];
+        setCounts({
+          open: tickets.filter(
+            (t) => t.status === "open" || t.status === "in-progress",
+          ).length,
+          escalated: tickets.filter((t) => t.status === "escalated").length,
+        });
+      } catch (error) {
+        console.error("Unable to load sidebar ticket counts:", error);
+      }
+    };
+
+    loadCounts();
+
+    if (!user?.companyId) return;
+
+    const socket = io(import.meta.env.VITE_WS_URL || "http://localhost:5000", {
+      transports: ["websocket"],
+    });
+
+    socket.emit("company:join", user.companyId);
+    const refresh = () => loadCounts();
+    socket.on("ticket:created", refresh);
+    socket.on("ticket:updated", refresh);
+    socket.on("ticket:message", refresh);
+
+    return () => socket.disconnect();
+  }, [user?.companyId]);
 
   const NAV = [
     {
       id: "inbox",
       label: "Inbox",
       icon: <Inbox size={15} />,
-      badge: openCount,
+      badge: counts.open,
     },
     {
       id: "escalations",
       label: "Escalations",
       icon: <ArrowRight size={15} />,
-      badge: escCount,
+      badge: counts.escalated,
       warn: true,
     },
     { id: "reports", label: "Reports", icon: <BarChart2 size={15} /> },

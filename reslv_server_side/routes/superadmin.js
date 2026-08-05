@@ -6,8 +6,11 @@ import {
   updateAdminNode,
   deleteAdminNode,
 } from "../controllers/superadminController.js";
+import { requireAuth, requireRoles } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+
+router.use(requireAuth, requireRoles(["superadmin"]));
 
 router.get("/init", getDashboardInit);
 router.post("/companies", createCompanyNode);

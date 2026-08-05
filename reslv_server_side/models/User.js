@@ -16,6 +16,11 @@ const userSchema = new mongoose.Schema(
   expiryDate: { type: Number },
   googleEmail: { type: String },
 },
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true },
 );

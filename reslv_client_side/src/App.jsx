@@ -6,10 +6,13 @@ import AppShell from "./pages/AppShell";
 import LoginScreen from "./pages/LoginScreen";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import { InboxView, EscalationsView } from "./components/workspace/Views";
+// import { InboxView, EscalationsView } from "./pages/TicketViews";
 import { ReportsView, SettingsView } from "./components/workspace/Placeholders";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
 import TeamManagement from "./pages/TeamManagement";
 import BillingPage from "./pages/BillingPage";
+import InviteAcceptPage from "./pages/InviteAcceptPage";
+import SupportPortalPage from "./pages/SupportPortalPage";
 
 function RequireAuth({ allowedRoles, children }) {
   const { user, loading } = useContext(AuthContext);
@@ -47,6 +50,8 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/accept-invite" element={<InviteAcceptPage />} />
+      <Route path="/support/:companyCode" element={<SupportPortalPage />} />
       <Route
         path="/login"
         element={
@@ -80,7 +85,13 @@ export default function App() {
         path="/"
         element={
           <RequireAuth
-            allowedRoles={["superadmin", "admin", "agent", "sprint_planner"]}
+            allowedRoles={[
+              "superadmin",
+              "admin",
+              "agent",
+              "employee",
+              "sprint_planner",
+            ]}
           >
             <AppShell user={user} onLogout={logout} />
           </RequireAuth>
