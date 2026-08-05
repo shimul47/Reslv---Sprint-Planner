@@ -10,6 +10,7 @@ import {
   Plus,
   Trash2,
   Building,
+  Copy,
 } from "lucide-react";
 
 // =========================================================================
@@ -86,6 +87,8 @@ function InlineMatrixRain() {
   );
 }
 
+const SUPERADMIN_COMPANY_SCOPE_KEY = "reslv.superadmin.companyScope";
+
 // =========================================================================
 // 2. MAIN SUPERADMIN DASHBOARD ENTITY (WIRED TO BACKEND)
 // =========================================================================
@@ -95,18 +98,53 @@ export default function SuperAdminDashboard() {
   const [admins, setAdmins] = useState([]);
   const [systemLogs, setSystemLogs] = useState([]);
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [adminCompanyFilter, setAdminCompanyFilter] = useState(() => {
+    if (typeof window === "undefined") return "all";
+    return localStorage.getItem(SUPERADMIN_COMPANY_SCOPE_KEY) || "all";
+  });
 
   const [newAdmin, setNewAdmin] = useState({
     name: "",
     email: "",
     companyId: "",
     level: "SysOp Admin",
+    inviteLimit: 5,
   });
   const [newCompany, setNewCompany] = useState({ name: "", sector: "" });
 
   // Add your actual backend URL/Token here
   const API_BASE = "http://localhost:5000/api/superadmin"; // Adjust to your backend port
   const token = localStorage.getItem("token") || "";
+  const publicSupportBase = `${window.location.origin}/support`;
+  const filteredAdmins =
+    adminCompanyFilter === "all"
+      ? admins
+      : admins.filter(
+          (admin) => String(admin.companyId) === String(adminCompanyFilter),
+        );
+
+  const copyPublicLink = async (companyCode) => {
+    const link = `${publicSupportBase}/${companyCode}`;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      window.alert("Public link copied to clipboard.");
+    } catch (error) {
+      window.prompt("Copy public link", link);
+    }
+  };
+
+  const filteredCompanies =
+    adminCompanyFilter === "all"
+      ? companies
+      : companies.filter(
+          (company) => String(company.id) === String(adminCompanyFilter),
+        );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(SUPERADMIN_COMPANY_SCOPE_KEY, adminCompanyFilter);
+  }, [adminCompanyFilter]);
 
   const fetchHeaders = {
     "Content-Type": "application/json",
@@ -269,7 +307,7 @@ export default function SuperAdminDashboard() {
           name: newAdmin.name.trim(),
           email: newAdmin.email.trim(),
           companyId: newAdmin.companyId,
-          inviteLimit: 5, // Default limit as discussed
+          inviteLimit: Number(newAdmin.inviteLimit) || 5,
         }),
       });
 
@@ -314,6 +352,7 @@ export default function SuperAdminDashboard() {
         email: "",
         companyId: companies[0]?.id || "",
         level: "SysOp Admin",
+        inviteLimit: 5,
       });
     } catch (error) {
       alert(`SYSTEM_ERROR: ${error.message}`);
@@ -325,8 +364,10 @@ export default function SuperAdminDashboard() {
     if (!window.confirm(`CRITICAL: INITIATE DE-PROVISION FOR NODE ${adminId}?`))
       return;
 
-    // TODO: Wire up actual DELETE request to backend
-    // await fetch(`${API_BASE}/admins/${adminId}`, { method: 'DELETE', headers: fetchHeaders });
+    await fetch(`${API_BASE}/admins/${adminId}`, {
+      method: "DELETE",
+      headers: fetchHeaders,
+    });
 
     setAdmins((prev) => prev.filter((a) => a.id !== adminId));
     setCompanies((prev) =>
@@ -551,13 +592,41 @@ export default function SuperAdminDashboard() {
               {/* Input Form Box: Admins Section */}
               {activeSection === "admins" && (
                 <div className="bg-black/60 backdrop-blur-md border border-[#00FF41]/40 rounded-xl p-5 shadow-lg">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2 mb-4 border-b border-[#00FF41]/20 pb-2.5">
-                    <Plus size={16} className="text-[#00FF41]" /> Assign &
-                    Provision Company Admin Node
-                  </h3>
+                  <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4 border-b border-[#00FF41]/20 pb-2.5">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
+                      <Plus size={16} className="text-[#00FF41]" /> Assign &
+                      Provision Company Admin Node
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-black text-emerald-500/60 uppercase tracking-wider">
+                        Company Scope
+                      </label>
+                      <select
+                        value={adminCompanyFilter}
+                        onChange={(e) => {
+                          const nextScope = e.target.value;
+                          setAdminCompanyFilter(nextScope);
+                          if (nextScope !== "all") {
+                            setNewAdmin((prev) => ({
+                              ...prev,
+                              companyId: nextScope,
+                            }));
+                          }
+                        }}
+                        className="bg-black/80 border border-[#00FF41]/30 focus:border-[#00FF41] rounded p-2 text-xs text-white outline-none font-mono focus:ring-1 focus:ring-[#00FF41] min-w-[220px]"
+                      >
+                        <option value="all">All Companies</option>
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.name} ({company.companyCode})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <form
                     onSubmit={handleCreateAdmin}
-                    className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end"
+                    className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
                   >
                     <div>
                       <label className="block text-[10px] font-bold text-emerald-500/60 uppercase mb-1">
@@ -613,6 +682,25 @@ export default function SuperAdminDashboard() {
                         ))}
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-emerald-500/60 uppercase mb-1">
+                        Invite Limit
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        value={newAdmin.inviteLimit}
+                        onChange={(e) =>
+                          setNewAdmin({
+                            ...newAdmin,
+                            inviteLimit: e.target.value,
+                          })
+                        }
+                        className="w-full bg-black/80 border border-[#00FF41]/30 focus:border-[#00FF41] rounded p-2 text-xs text-white outline-none font-mono focus:ring-1 focus:ring-[#00FF41]"
+                      />
+                    </div>
                     <button
                       type="submit"
                       className="w-full bg-transparent border-2 border-[#00FF41] text-[#00FF41] hover:bg-[#00FF41] hover:text-black py-2 rounded text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(0,255,65,0.2)] hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] cursor-pointer active:scale-98"
@@ -634,6 +722,7 @@ export default function SuperAdminDashboard() {
                           <th className="p-4">Corporate_Name</th>
                           <th className="p-4">Operational_Sector</th>
                           <th className="p-4">Linked_Admins</th>
+                          <th className="p-4">Public_Link</th>
                           <th className="p-4 text-right">Destruct_Protocol</th>
                         </>
                       )}
@@ -660,7 +749,7 @@ export default function SuperAdminDashboard() {
                   </thead>
                   <tbody className="divide-y divide-[#00FF41]/10 text-xs font-mono font-bold text-[#E0FAEC]">
                     {activeSection === "companies" &&
-                      companies.map((comp) => (
+                      filteredCompanies.map((comp) => (
                         <tr
                           key={comp.id}
                           className="hover:bg-[#00FF41]/10 transition-colors"
@@ -677,6 +766,22 @@ export default function SuperAdminDashboard() {
                           <td className="p-4 font-black text-[#00FF41] drop-shadow-[0_0_3px_rgba(0,255,65,0.4)] tracking-widest">
                             [{comp.adminsCount.toString().padStart(2, "0")}]
                           </td>
+                          <td className="p-4 text-emerald-300/80 font-mono text-[10px] break-all max-w-[220px]">
+                            <div className="flex items-center gap-2">
+                              <span className="break-all">
+                                {publicSupportBase}/{comp.companyCode}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyPublicLink(comp.companyCode)}
+                                className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded border border-[#00FF41]/30 text-[#00FF41] hover:bg-[#00FF41]/10 transition-colors"
+                                title="Copy public link"
+                              >
+                                <Copy size={11} />
+                                Copy
+                              </button>
+                            </div>
+                          </td>
                           <td className="p-4 text-right">
                             <button
                               onClick={() =>
@@ -691,7 +796,7 @@ export default function SuperAdminDashboard() {
                       ))}
 
                     {activeSection === "admins" &&
-                      admins.map((admin) => (
+                      filteredAdmins.map((admin) => (
                         <tr
                           key={admin.id}
                           className="hover:bg-[#00FF41]/10 transition-colors"

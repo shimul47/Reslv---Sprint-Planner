@@ -7,9 +7,14 @@ const inviteSchema = new mongoose.Schema({
     lowercase: true,
     trim: true,
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
+    required: true,
+  },
   role: {
     type: String,
-    enum: ["admin", "developer", "agent"],
+    enum: ["admin", "developer", "agent", "employee"],
     default: "agent",
   },
   token: {
@@ -26,6 +31,11 @@ const inviteSchema = new mongoose.Schema({
     type: String,
     enum: ["Pending", "Accepted", "Revoked"],
     default: "Pending",
+  },
+  invitedByEmail: {
+    type: String,
+    lowercase: true,
+    trim: true,
   },
   createdAt: {
     type: Date,
