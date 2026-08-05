@@ -12,6 +12,8 @@ import inviteRoutes from "./routes/invites.js";
 import ticketRoutes from "./routes/tickets.js";
 import publicSupportRoutes from "./routes/publicSupport.js";
 import paymentRoutes, { handleWebhook } from "./routes/paymentRoutes.js";
+import calendarRoutes from "./routes/calendarRoutes.js";
+
 import Company from "./models/Company.js";
 import User from "./models/User.js";
 dotenv.config();
@@ -40,7 +42,8 @@ io.on("connection", (socket) => {
 
 // Middleware
 app.use(cors());
-
+// ...
+app.use("/api/calendar", calendarRoutes);
 // Stripe webhook needs the RAW request body to verify the signature, so it
 // must be registered BEFORE express.json() and must not go through it.
 app.post(
