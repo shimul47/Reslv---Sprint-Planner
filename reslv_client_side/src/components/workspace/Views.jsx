@@ -2,8 +2,8 @@ import { useContext, useEffect, useRef, useState } from "react";
 import {
   Activity,
   BarChart2,
+  CheckCircle,
   Clock,
-  GitMerge,
   Inbox,
   Globe,
   Mail,
@@ -149,18 +149,52 @@ export function StatsBar({ tickets = TKT }) {
   );
 }
 
-export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
+export function TicketDetail({
+  ticket,
+  showCX,
+  setShowCX,
+  onSendMessage,
+  onEscalate,
+  onResolve,
+  onReopen,
+  onPriorityChange,
+  onSaveNote,
+  onAssign,
+}) {
+  const { user } = useContext(AuthContext);
   const [tab, setTab] = useState("thread");
   const [msg, setMsg] = useState("");
   const [note, setNote] = useState("");
   const [typing, setTyping] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
+  const [agents, setAgents] = useState([]);
   const endRef = useRef(null);
+
+  useEffect(() => {
+    api
+      .get("/tickets/team/agents")
+      .then((res) => setAgents(res.data?.agents || []))
+      .catch(() => setAgents([]));
+  }, []);
+
+  const isResolved = ticket.status === "resolved";
+  const internalNotes = ticket.thread.filter((m) => m.from === "internal");
+  const canManageAssignment =
+    !ticket.assignedTo ||
+    String(ticket.assignedTo) === String(user?.id) ||
+    ["admin", "superadmin"].includes(user?.roles?.[0]);
 
   useEffect(() => {
     setTab("thread");
     setMsg("");
     endRef.current?.scrollIntoView({ behavior: "instant" });
   }, [ticket.id]);
+
+  // Keep the thread pinned to the latest message as new ones arrive (sent or received).
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [ticket.thread.length, tab]);
 
   useEffect(() => {
     if (tab !== "chat") return;
@@ -183,6 +217,13 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
     setMsg("");
   };
 
+  const handleComposerKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 px-6 py-4 border-b border-[rgba(128,128,200,0.1)] bg-white">
@@ -194,6 +235,18 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
               </code>
               <StatusBadge status={ticket.status} />
               <SevBadge sev={ticket.severity} />
+              <select
+                value={ticket.severity}
+                onChange={(e) => onPriorityChange?.(ticket.id, e.target.value)}
+                className="text-[10px] font-bold uppercase tracking-wide bg-white border border-[rgba(128,128,200,0.2)] rounded-full px-2 py-0.5 cursor-pointer focus:outline-none text-[#6B6B90]"
+                title="Change priority"
+              >
+                {["low", "medium", "high", "critical"].map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
               {ticket.slaMins === 0 && ticket.status !== "resolved" && (
                 <span className="flex items-center gap-1 text-[11px] font-bold text-[#CC1836] bg-[#FFEEF1] px-2 py-0.5 rounded-full animate-pulse">
                   <Clock size={10} /> SLA BREACH
@@ -203,6 +256,27 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
             <h2 className="text-[15px] font-semibold text-[#18182E] leading-snug">
               {ticket.subject}
             </h2>
+            <div className="flex items-center gap-1.5 mt-1 text-[12px] text-[#6B6B90]">
+              <Av
+                initials={ticket.customer.initials}
+                hue={ticket.customer.hue}
+                size="xs"
+              />
+              <span className="font-semibold text-[#18182E]">
+                {ticket.customer.name}
+              </span>
+              {ticket.customer.company && (
+                <>
+                  <span className="text-[#D8D8EE]">·</span>
+                  <span>{ticket.customer.company}</span>
+                </>
+              )}
+              {ticket.customer.plan && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#EEF0FF] text-[#5B5BD6]">
+                  {ticket.customer.plan}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-1.5 text-[12px] text-[#9898B8] flex-wrap">
               <span className="flex items-center gap-1">
                 {channelIcon(ticket.channel)}
@@ -227,23 +301,61 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button className={btnGhost}>
-              <GitMerge size={13} />
+          <div className="flex items-center gap-1.5 flex-shrink-0 relative">
+            <button
+              className={btnGhost}
+              disabled={isResolved}
+              onClick={() => onEscalate?.(ticket.id)}
+            >
+              Escalate
             </button>
-            <button className={btnGhost}>Escalate</button>
-            <button className="px-3 py-1.5 text-[12px] font-semibold bg-[#EDFAF2] text-[#228050] rounded-xl hover:bg-[#D5F5E3] transition-colors border border-[rgba(61,184,112,0.18)]">
-              Resolve
-            </button>
+            {isResolved ? (
+              <button
+                onClick={() => onReopen?.(ticket.id)}
+                className="px-3 py-1.5 text-[12px] font-semibold bg-[#EEF0FF] text-[#5B5BD6] rounded-xl hover:bg-[#E4E6FF] transition-colors border border-[rgba(128,128,200,0.18)]"
+              >
+                Reopen
+              </button>
+            ) : (
+              <button
+                onClick={() => onResolve?.(ticket.id)}
+                className="px-3 py-1.5 text-[12px] font-semibold bg-[#EDFAF2] text-[#228050] rounded-xl hover:bg-[#D5F5E3] transition-colors border border-[rgba(61,184,112,0.18)]"
+              >
+                Resolve
+              </button>
+            )}
             <button
               onClick={() => setShowCX(!showCX)}
               className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${showCX ? "bg-[#EEF0FF] text-[#5B5BD6]" : "text-[#C0C0D8] hover:bg-[#F0F0FF] hover:text-[#5B5BD6]"}`}
             >
               <User size={14} />
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-xl text-[#C0C0D8] hover:bg-[#F0F0FF] hover:text-[#6B6B90] transition-colors">
+            <button
+              onClick={() => setShowMenu((v) => !v)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-[#C0C0D8] hover:bg-[#F0F0FF] hover:text-[#6B6B90] transition-colors"
+            >
               <MoreHorizontal size={14} />
             </button>
+            {showMenu && (
+              <div className="absolute top-9 right-0 w-44 bg-white rounded-xl shadow-lg border border-[rgba(128,128,200,0.14)] z-20 overflow-hidden">
+                {ticket.assignedTo && canManageAssignment && (
+                  <button
+                    onClick={() => {
+                      onAssign?.(ticket.id, null);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-[#6B6B90] hover:bg-[#F5F5FF] transition-colors"
+                  >
+                    Unassign ticket
+                  </button>
+                )}
+                {!ticket.assignedTo && (
+                  <p className="px-3.5 py-2.5 text-[12px] text-[#C0C0D8]">
+                    Unassigned — awaiting first reply
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5 mt-3 flex-wrap">
@@ -281,7 +393,8 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
               <textarea
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
-                placeholder="Reply to customer…"
+                onKeyDown={handleComposerKeyDown}
+                placeholder="Reply to customer"
                 rows={2}
                 className="flex-1 text-[13px] text-[#18182E] bg-transparent placeholder-[#C8C8E0] resize-none focus:outline-none leading-relaxed"
               />
@@ -334,7 +447,8 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
               <textarea
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
-                placeholder="Message the customer directly…"
+                onKeyDown={handleComposerKeyDown}
+                placeholder="Message the customer directly… (Enter to send, Shift+Enter for a new line)"
                 rows={2}
                 className="flex-1 text-[13px] text-[#18182E] bg-transparent placeholder-[#C8C8E0] resize-none focus:outline-none leading-relaxed"
               />
@@ -396,36 +510,74 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
               Escalate Further
             </p>
             <div className="flex gap-2">
-              <button className="flex-1 py-2 text-[13px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-xl hover:bg-[#E4E6FF] transition-colors">
+              <button
+                disabled={isResolved}
+                onClick={() => onEscalate?.(ticket.id)}
+                className="flex-1 py-2 text-[13px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-xl hover:bg-[#E4E6FF] transition-colors disabled:opacity-50"
+              >
                 Escalate to Admin
               </button>
-              <button className="flex-1 py-2 text-[13px] font-semibold text-[#6B6B90] border border-[rgba(128,128,200,0.2)] rounded-xl hover:border-[#80A8FF] hover:text-[#5B5BD6] transition-all">
+              <button
+                onClick={() => setShowAssignPicker((v) => !v)}
+                className="flex-1 py-2 text-[13px] font-semibold text-[#6B6B90] border border-[rgba(128,128,200,0.2)] rounded-xl hover:border-[#80A8FF] hover:text-[#5B5BD6] transition-all"
+              >
                 Assign Member
               </button>
             </div>
+            {showAssignPicker && (
+              <select
+                defaultValue=""
+                onChange={async (e) => {
+                  if (!e.target.value) return;
+                  await onAssign?.(ticket.id, e.target.value);
+                  setShowAssignPicker(false);
+                }}
+                className="mt-3 w-full px-3 py-2 rounded-xl border border-[rgba(128,128,200,0.2)] bg-[#F8F8FF] text-[13px] text-[#18182E] cursor-pointer focus:outline-none"
+              >
+                <option value="" disabled>
+                  Select an agent…
+                </option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       )}
 
       {tab === "notes" && (
         <div className="flex-1 overflow-y-auto px-6 py-5 bg-[#F7F7FF]">
-          <div className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-4 mb-4 shadow-sm">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <Av initials="AK" hue={252} size="sm" />
-              <div>
-                <p className="text-[12px] font-semibold text-[#18182E]">
-                  Alex Kim
-                </p>
-                <p className="text-[11px] text-[#C0C0D8]">10:31 AM · Today</p>
-              </div>
-            </div>
-            <p className="text-[13px] text-[#18182E] leading-relaxed">
-              Webhook queue showing ~92% error rate. Spoke with infra —
-              potential Redis saturation on the worker. Escalating to Marcus for
-              direct intervention. Customer is high-value ({ticket.customer.arr}
-              ) and high churn risk — treat as P0.
+          {internalNotes.length === 0 && (
+            <p className="text-[13px] text-[#B0B0CC] text-center py-6">
+              No internal notes yet.
             </p>
-          </div>
+          )}
+          {internalNotes.map((n) => (
+            <div
+              key={n.id}
+              className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-4 mb-4 shadow-sm"
+            >
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <Av
+                  initials={(n.agent || "S").slice(0, 2).toUpperCase()}
+                  hue={252}
+                  size="sm"
+                />
+                <div>
+                  <p className="text-[12px] font-semibold text-[#18182E]">
+                    {n.agent || "Support"}
+                  </p>
+                  <p className="text-[11px] text-[#C0C0D8]">{n.time}</p>
+                </div>
+              </div>
+              <p className="text-[13px] text-[#18182E] leading-relaxed">
+                {n.text}
+              </p>
+            </div>
+          ))}
           <div className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] px-4 py-4 shadow-sm">
             <p className="text-[11px] font-bold text-[#B8B8D0] uppercase tracking-wider mb-3">
               Add Note
@@ -438,7 +590,14 @@ export function TicketDetail({ ticket, showCX, setShowCX, onSendMessage }) {
               className="w-full text-[13px] text-[#18182E] bg-transparent placeholder-[#C8C8E0] resize-none focus:outline-none leading-relaxed"
             />
             <div className="flex justify-end pt-2 border-t border-[rgba(128,128,200,0.08)] mt-2">
-              <button className="px-4 py-1.5 bg-[#CEB5FF] text-[#3D3060] text-[12px] font-semibold rounded-lg hover:bg-[#BEA5EE] transition-colors">
+              <button
+                onClick={async () => {
+                  if (!note.trim() || !onSaveNote) return;
+                  await onSaveNote(ticket.id, note.trim());
+                  setNote("");
+                }}
+                className="px-4 py-1.5 bg-[#CEB5FF] text-[#3D3060] text-[12px] font-semibold rounded-lg hover:bg-[#BEA5EE] transition-colors"
+              >
                 Save Note
               </button>
             </div>
@@ -482,11 +641,26 @@ export function useTicketFeed(selectedTicketId) {
       socket.emit("ticket:join", selectedTicketId);
     }
 
-    // Sync state when real-time events occur
+    // Whole-ticket-shape changes (status/severity/assignment/escalation) are
+    // low-frequency, so a full refetch is simplest and cheap.
     const sync = () => refreshTickets();
     socket.on("ticket:created", sync);
     socket.on("ticket:updated", sync);
-    socket.on("ticket:message", sync);
+
+    // Chat messages are the hot path — append the pushed payload directly
+    // instead of refetching the whole ticket list for instant delivery.
+    socket.on("ticket:message", ({ ticketNumber, message }) => {
+      setTickets((prev) =>
+        prev.map((t) =>
+          t.id === ticketNumber
+            ? { ...t, thread: [...t.thread, message], lastMsg: message.text }
+            : t,
+        ),
+      );
+    });
+
+    // Reconciliation safety net: catch up on anything missed while disconnected.
+    socket.on("connect", refreshTickets);
 
     return () => socket.disconnect();
   }, [user?.companyId, selectedTicketId]);
@@ -531,6 +705,62 @@ export function InboxView() {
       await refreshTickets();
     } catch (error) {
       console.error("Failed to send message:", error);
+    }
+  };
+
+  const handleEscalate = async (ticketId) => {
+    try {
+      await api.patch(`/tickets/${ticketId}/escalate`);
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to escalate ticket:", error);
+    }
+  };
+
+  const handleResolve = async (ticketId) => {
+    try {
+      await api.patch(`/tickets/${ticketId}/resolve`);
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to resolve ticket:", error);
+    }
+  };
+
+  const handleReopen = async (ticketId) => {
+    try {
+      await api.patch(`/tickets/${ticketId}`, { status: "open" });
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to reopen ticket:", error);
+    }
+  };
+
+  const handlePriorityChange = async (ticketId, severity) => {
+    try {
+      await api.patch(`/tickets/${ticketId}`, { severity });
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to change priority:", error);
+    }
+  };
+
+  const handleSaveNote = async (ticketId, text) => {
+    try {
+      await api.post(`/tickets/${ticketId}/notes`, { text });
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to save note:", error);
+    }
+  };
+
+  const handleAssign = async (ticketId, assigneeId) => {
+    try {
+      await api.patch(`/tickets/${ticketId}/assign`, {
+        assigneeId: assigneeId || null,
+      });
+      await refreshTickets();
+    } catch (error) {
+      console.error("Failed to update assignment:", error);
     }
   };
 
@@ -642,6 +872,12 @@ export function InboxView() {
               showCX={showCX}
               setShowCX={setShowCX}
               onSendMessage={handleSendMessage}
+              onEscalate={handleEscalate}
+              onResolve={handleResolve}
+              onReopen={handleReopen}
+              onPriorityChange={handlePriorityChange}
+              onSaveNote={handleSaveNote}
+              onAssign={handleAssign}
             />
           </div>
           {showCX && (

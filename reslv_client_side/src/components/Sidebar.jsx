@@ -17,6 +17,7 @@ import { AuthContext } from "../context/AuthContext.jsx";
 
 export default function Sidebar({ nav, setNav, onNew, onLogout }) {
   const { user } = useContext(AuthContext);
+  const isAdmin = ["admin", "superadmin"].includes(user?.roles?.[0]);
   const [counts, setCounts] = useState({ open: 0, escalated: 0 });
 
   useEffect(() => {
@@ -66,8 +67,12 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
       badge: counts.escalated,
       warn: true,
     },
-    { id: "reports", label: "Reports", icon: <BarChart2 size={15} /> },
-    { id: "settings", label: "Settings", icon: <Settings size={15} /> },
+    ...(isAdmin
+      ? [
+          { id: "reports", label: "Reports", icon: <BarChart2 size={15} /> },
+          { id: "settings", label: "Settings", icon: <Settings size={15} /> },
+        ]
+      : []),
   ];
 
   return (
@@ -90,9 +95,9 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
             {APP_TITLE}
           </span>
         </div>
-        <button className="flex items-center gap-1 text-[11px] text-[#9898B8] hover:text-[#5B5BD6] transition-colors mt-0.5 ml-[42px]">
-          {APP_ORG}
-          <ChevronDown size={10} />
+        <button className="flex items-center gap-1 text-[11px] font-medium text-[#6B6B90] hover:text-[#5B5BD6] transition-colors mt-0.5 ml-[42px] max-w-[150px]">
+          <span className="truncate">{user?.companyName || APP_ORG}</span>
+          <ChevronDown size={10} className="flex-shrink-0" />
         </button>
       </div>
       <div className="px-4 mb-3">
@@ -129,12 +134,23 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
       </nav>
       <div className="px-4 py-4 border-t border-[rgba(128,128,200,0.14)] flex-shrink-0">
         <div className="flex items-center gap-3">
-          <Av initials="AK" hue={252} />
+          <Av
+            initials={(user?.name || "U")
+              .split(/\s+/)
+              .filter(Boolean)
+              .map((w) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+            hue={252}
+          />
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-semibold text-[#18182E] truncate">
-              Alex Kim
+              {user?.name || "Unknown"}
             </p>
-            <p className="text-[11px] text-[#A8A8C0]">Support Agent</p>
+            <p className="text-[11px] text-[#A8A8C0] capitalize">
+              {user?.roles?.[0] || "Agent"}
+            </p>
           </div>
           <button
             onClick={onLogout}

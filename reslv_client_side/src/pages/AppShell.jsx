@@ -1,19 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
-import { NewTicketModal } from "../components/workspace/Overlays";
-
-function navIdFromPath(pathname) {
-  if (pathname.startsWith("/tickets/escalations")) return "escalations";
-  if (pathname.startsWith("/tickets/reports")) return "reports";
-  if (pathname.startsWith("/tickets/settings")) return "settings";
-  return "inbox";
-}
 
 export default function AppShell({ onLogout, user }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [showNewTicket, setShowNewTicket] = useState(false);
 
   const isAdmin =
     user?.roles?.some((role) => ["superadmin", "admin"].includes(role)) ?? false;
@@ -21,18 +11,8 @@ export default function AppShell({ onLogout, user }) {
   const isDashboard =
     location.pathname === "/" || location.pathname === "/dashboard";
   const isSprintPlanner = location.pathname.startsWith("/sprint-planner");
-  const isTickets = location.pathname.startsWith("/tickets");
   const isBilling = location.pathname.startsWith("/billing");
   const isAdminSection = location.pathname.startsWith("/admin");
-
-  const activeNav = navIdFromPath(location.pathname);
-
-  const NAV_TO_PATH = {
-    inbox: "/tickets/inbox",
-    escalations: "/tickets/escalations",
-    reports: "/tickets/reports",
-    settings: "/tickets/settings",
-  };
 
   const isRestrictedForUser = (isSprintPlanner || isAdminSection || isBilling) && !isAdmin;
   useEffect(() => {
@@ -150,15 +130,6 @@ export default function AppShell({ onLogout, user }) {
   // 2. Sub-system Shell
   return (
     <div className="flex h-screen w-full bg-[var(--background)] overflow-hidden text-[var(--color-foreground)]">
-      {isTickets && (
-        <Sidebar
-          nav={activeNav}
-          setNav={(id) => navigate(NAV_TO_PATH[id] ?? "/tickets/inbox")}
-          onNew={() => setShowNewTicket(true)}
-          onLogout={onLogout}
-        />
-      )}
-
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)] bg-[var(--background)]/80 backdrop-blur-sm z-10">
           <div className="flex items-center gap-4">
@@ -171,7 +142,6 @@ export default function AppShell({ onLogout, user }) {
             </button>
             <div className="h-5 w-px bg-[var(--color-border)]"></div>
             <h2 className="text-sm font-bold flex items-center gap-2">
-              {isTickets && "🎫 Ticket System"}
               {isSprintPlanner && "📅 Sprint Planner"}
               {isAdminSection && "👥 Team Management"}
               {isBilling && "💳 Billing & Subscription"}
@@ -179,25 +149,13 @@ export default function AppShell({ onLogout, user }) {
           </div>
 
           <div className="flex items-center">
-            {isTickets ? (
-              isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => navigate("/sprint-planner")}
-                  className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
-                >
-                  Switch to Sprint Planner &rarr;
-                </button>
-              )
-            ) : (
-              <button
-                type="button"
-                onClick={() => navigate("/tickets/inbox")}
-                className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
-              >
-                Switch to Tickets &rarr;
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate("/tickets/inbox")}
+              className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-semibold px-4 py-2 rounded-[var(--radius-sm)] shadow-[var(--shadow)] hover:opacity-90 transition-all cursor-pointer"
+            >
+              Switch to Tickets &rarr;
+            </button>
           </div>
         </div>
 
@@ -205,10 +163,6 @@ export default function AppShell({ onLogout, user }) {
           <Outlet />
         </div>
       </main>
-
-      {showNewTicket && (
-        <NewTicketModal onClose={() => setShowNewTicket(false)} />
-      )}
     </div>
   );
 }

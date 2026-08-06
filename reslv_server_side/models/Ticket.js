@@ -111,6 +111,12 @@ const ticketSchema = new mongoose.Schema(
       type: String,
       default: "Unassigned",
     },
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     tags: {
       type: [String],
       default: [],
@@ -150,6 +156,7 @@ const ticketSchema = new mongoose.Schema(
 // Compound indexes to speed up dashboard list fetching
 ticketSchema.index({ companyId: 1, createdAt: -1 });
 ticketSchema.index({ companyId: 1, createdBy: 1 });
+ticketSchema.index({ companyId: 1, assignedTo: 1, status: 1 });
 
 const Ticket = mongoose.models.Ticket || mongoose.model("Ticket", ticketSchema);
 

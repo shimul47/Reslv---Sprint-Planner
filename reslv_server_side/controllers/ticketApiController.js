@@ -1,10 +1,8 @@
 import Ticket from "../models/Ticket.js";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET || "reslv_super_secret_key_1234";
+const AGENT_ROLES = ["superadmin", "admin", "agent", "employee", "sprint_planner"];
 
 function initialsFromName(name) {
   return (
@@ -28,6 +26,44 @@ function getPrimaryRole(user) {
   return user?.roles?.[0] || "";
 }
 
+function normalizeEmail(email) {
+  return (email || "").trim().toLowerCase();
+}
+
+const DEFAULT_TICKET_SETTINGS = {
+  slaTargets: { low: 1440, medium: 480, high: 120, critical: 30 },
+  autoAssignOnReply: true,
+  supportHoursNote: "",
+};
+
+// Merges a company's stored ticketSettings over the defaults so companies
+// created before this feature (or with partially-set fields) still work.
+async function getCompanySettings(companyId) {
+  if (!companyId) return DEFAULT_TICKET_SETTINGS;
+  const company = await Company.findById(companyId).select("ticketSettings").lean();
+  const stored = company?.ticketSettings || {};
+  return {
+    slaTargets: { ...DEFAULT_TICKET_SETTINGS.slaTargets, ...(stored.slaTargets || {}) },
+    autoAssignOnReply:
+      stored.autoAssignOnReply === undefined
+        ? DEFAULT_TICKET_SETTINGS.autoAssignOnReply
+        : stored.autoAssignOnReply,
+    supportHoursNote: stored.supportHoursNote || DEFAULT_TICKET_SETTINGS.supportHoursNote,
+  };
+}
+
+// SLA is computed live from the target (by severity) and elapsed time since
+// creation, rather than trusting the ticket's stored slaMins/slaTotal, which
+// were only ever written once at creation and never actually counted down.
+function computeSla(ticket, slaTargets) {
+  const total = slaTargets?.[ticket.severity] ?? DEFAULT_TICKET_SETTINGS.slaTargets.medium;
+  if (ticket.status === "resolved") {
+    return { slaMins: total, slaTotal: total };
+  }
+  const elapsedMins = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
+  return { slaMins: Math.max(0, total - elapsedMins), slaTotal: total };
+}
+
 function getTicketScope(req) {
   const role = getPrimaryRole(req.user);
 
@@ -39,36 +75,36 @@ function getTicketScope(req) {
     return { companyId: req.user.companyId, createdBy: req.user.id };
   }
 
-  return { companyId: req.user.companyId };
-}
-
-function getRequestToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null;
+  if (role === "admin") {
+    return { companyId: req.user.companyId };
   }
 
-  return authHeader.split(" ")[1];
+  // agent/employee/sprint_planner: shared unassigned pool + tickets assigned to me
+  return {
+    companyId: req.user.companyId,
+    $or: [{ assignedTo: null }, { assignedTo: req.user.id }],
+  };
 }
 
-async function getOptionalTokenUser(req) {
-  const token = getRequestToken(req);
-  if (!token) return null;
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded?.id) return null;
-    return User.findById(decoded.id).lean();
-  } catch (error) {
-    return null;
-  }
+// JWTs issued by routes/auth.js only embed { id, companyId, roles } — no
+// display name — so any handler that needs the acting user's name/email
+// (message authorship, assignment) resolves it from the DB once.
+async function resolveActingUser(req) {
+  if (req.user?.name) return req.user;
+  const dbUser = await User.findById(req.user.id).select("name email").lean();
+  return dbUser ? { ...req.user, name: dbUser.name, email: dbUser.email } : req.user;
 }
 
-function formatTicket(ticket, customer, { includeInternal = true } = {}) {
+function formatTicket(
+  ticket,
+  customer,
+  { includeInternal = true, companyFallback = "", slaTargets = null } = {},
+) {
   const snapshot = ticket.customerSnapshot || {};
   const messages = includeInternal
     ? ticket.messages || []
     : (ticket.messages || []).filter((message) => message.from !== "internal");
+  const sla = computeSla(ticket, slaTargets || DEFAULT_TICKET_SETTINGS.slaTargets);
 
   return {
     id: ticket.ticketNumber,
@@ -78,7 +114,7 @@ function formatTicket(ticket, customer, { includeInternal = true } = {}) {
       name: snapshot.name || customer?.name || "Customer",
       email: snapshot.email || customer?.email || "",
       phone: snapshot.phone || "",
-      company: snapshot.company || ticket.companyName || "",
+      company: snapshot.company || companyFallback || "",
       plan: snapshot.plan || "Starter",
       arr: snapshot.arr || "$0/yr",
       churn: snapshot.churn || "low",
@@ -91,9 +127,10 @@ function formatTicket(ticket, customer, { includeInternal = true } = {}) {
     severity: ticket.severity,
     channel: ticket.channel,
     assignee: ticket.assignee,
+    assignedTo: ticket.assignedTo || null,
     status: ticket.status,
-    slaMins: ticket.slaMins,
-    slaTotal: ticket.slaTotal,
+    slaMins: sla.slaMins,
+    slaTotal: sla.slaTotal,
     lastMsg: ticket.lastMsg || ticket.description,
     resolvedAt: ticket.resolvedAt || null,
     tags: ticket.tags || [],
@@ -122,30 +159,16 @@ function formatTicket(ticket, customer, { includeInternal = true } = {}) {
 
 async function loadCompanyTicketView(ticketDoc, options = {}) {
   const customer = await User.findById(ticketDoc.createdBy).lean();
-  return formatTicket(ticketDoc, customer, options);
-}
-
-function buildCustomerToken(customer) {
-  return jwt.sign(
-    {
-      id: customer._id,
-      companyId: customer.companyId,
-      roles: customer.roles,
-      name: customer.name,
-    },
-    JWT_SECRET,
-    { expiresIn: "1d" },
-  );
-}
-
-function normalizeEmail(email) {
-  return (email || "").trim().toLowerCase();
+  let slaTargets = options.slaTargets;
+  if (!slaTargets) {
+    const settings = await getCompanySettings(ticketDoc.companyId);
+    slaTargets = settings.slaTargets;
+  }
+  return formatTicket(ticketDoc, customer, { ...options, slaTargets });
 }
 
 async function resolveTicketThread(ticket, userId = null) {
   ticket.status = "resolved";
-  ticket.messages = [];
-  ticket.lastMsg = "";
   ticket.resolvedAt = new Date();
   if (userId) {
     ticket.closedBy = userId;
@@ -161,12 +184,12 @@ async function escalateTicketThread(ticket) {
   return ticket;
 }
 
-async function addInternalNote(ticket, text, user) {
+async function addInternalNote(ticket, text, actingUser) {
   ticket.messages.push({
     from: "internal",
     text,
-    agent: user?.name || user?.email || "Support",
-    authorId: user?.id,
+    agent: actingUser?.name || actingUser?.email || "Support",
+    authorId: actingUser?.id,
     read: true,
   });
   ticket.lastMsg = text;
@@ -174,246 +197,36 @@ async function addInternalNote(ticket, text, user) {
   return ticket;
 }
 
-export const publicSignup = async (req, res) => {
-  try {
-    const { companyCode } = req.params;
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
-    const company = await Company.findOne({
-      companyCode: companyCode.toLowerCase(),
+function emitTicketUpdated(req, ticket) {
+  const io = req.app.get("io");
+  if (io) {
+    io.to(`company:${ticket.companyId.toString()}`).emit("ticket:updated", {
+      ticketNumber: ticket.ticketNumber,
     });
-    if (!company) {
-      return res.status(404).json({ message: "Company not found." });
-    }
-
-    const normalizedEmail = normalizeEmail(email);
-    const existingUser = await User.findOne({
-      email: normalizedEmail,
-      companyId: company._id,
-    });
-
-    if (existingUser) {
-      return res
-        .status(409)
-        .json({ message: "Account already exists. Please log in." });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const customer = await User.create({
-      name,
-      email: normalizedEmail,
-      password: hashedPassword,
-      roles: ["customer"],
-      companyId: company._id,
-      companyName: company.name,
-    });
-
-    const token = buildCustomerToken(customer);
-
-    res.status(201).json({
-      token,
-      user: {
-        id: customer._id,
-        name: customer.name,
-        email: customer.email,
-        roles: customer.roles,
-        companyId: customer.companyId,
-        companyName: customer.companyName,
-      },
-    });
-  } catch (error) {
-    console.error("Public signup error:", error);
-    res.status(500).json({ message: "Server error" });
   }
-};
+}
 
-export const createPublicTicket = async (req, res) => {
+// Minimal agent roster for the assign-to picker — deliberately separate from
+// GET /api/team (admin/superadmin-only, carries invite/PII data agents shouldn't see).
+export const listAssignableAgents = async (req, res) => {
   try {
-    const { companyCode } = req.params;
-    const { name, email, password, subject, description } = req.body;
-
-    if (!subject || !description) {
-      return res
-        .status(400)
-        .json({ message: "Subject and description are required." });
-    }
-
-    const company = await Company.findOne({
-      companyCode: companyCode.toLowerCase(),
-    });
-    if (!company) {
-      return res.status(404).json({ message: "Company not found." });
-    }
-
-    const tokenUser = await getOptionalTokenUser(req);
-    let customer = null;
-
-    if (
-      tokenUser &&
-      tokenUser.roles?.includes("customer") &&
-      String(tokenUser.companyId) === String(company._id)
-    ) {
-      customer = tokenUser;
-    } else {
-      if (!name || !email || !password) {
-        return res.status(400).json({ message: "All fields are required." });
-      }
-
-      const normalizedEmail = normalizeEmail(email);
-      customer = await User.findOne({
-        email: normalizedEmail,
-        companyId: company._id,
-      });
-
-      if (!customer) {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        customer = await User.create({
-          name,
-          email: normalizedEmail,
-          password: hashedPassword,
-          roles: ["customer"],
-          companyId: company._id,
-          companyName: company.name,
-        });
-      } else {
-        const isMatch = await bcrypt.compare(password, customer.password);
-        if (!isMatch) {
-          return res
-            .status(400)
-            .json({ message: "Invalid email or password." });
-        }
-      }
-    }
-
-    const customerTickets = await Ticket.find({
-      companyId: company._id,
-      createdBy: customer._id,
-    });
-    const openTickets = customerTickets.filter((ticket) =>
-      ["open", "in-progress", "escalated"].includes(ticket.status),
-    ).length;
-
-    const ticketNumber = `TKT-${Date.now().toString().slice(-6)}`;
-    const ticket = await Ticket.create({
-      ticketNumber,
-      title: subject,
-      subject,
-      description,
-      status: "open",
-      severity: "medium",
-      channel: "web",
-      companyId: company._id,
-      companyName: company.name,
-      createdBy: customer._id,
-      assignee: "Unassigned",
-      tags: [],
-      escalationStep: 0,
-      slaMins: 120,
-      slaTotal: 240,
-      lastMsg: description,
-      customerSnapshot: {
-        name: customer.name,
-        email: customer.email,
-        phone: "",
-        company: company.name,
-        plan: "Starter",
-        arr: "$0/yr",
-        churn: "low",
-        totalTickets: customerTickets.length + 1,
-        openTickets: openTickets + 1,
-        since: new Date(customer.createdAt || Date.now()).toLocaleDateString(),
-        initials: initialsFromName(customer.name),
-        hue: hueFromEmail(customer.email),
-      },
-      messages: [
-        {
-          from: "customer",
-          text: description,
-          agent: customer.name,
-          authorId: customer._id,
-          read: false,
-        },
-      ],
-    });
-
-    const io = req.app.get("io");
-    if (io) {
-      const formatted = await loadCompanyTicketView(ticket, {
-        includeInternal: false,
-      });
-      io.to(`company:${company._id}`).emit("ticket:created", formatted);
-    }
-
-    const formattedTicket = await loadCompanyTicketView(ticket, {
-      includeInternal: false,
-    });
-
-    res.status(201).json({
-      token: buildCustomerToken(customer),
-      user: {
-        id: customer._id,
-        name: customer.name,
-        email: customer.email,
-        roles: customer.roles,
-        companyId: customer.companyId,
-      },
-      ticket: formattedTicket,
-    });
-  } catch (error) {
-    console.error("Public ticket error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const publicLogin = async (req, res) => {
-  try {
-    const { companyCode } = req.params;
-    const { email, password } = req.body;
-
-    const company = await Company.findOne({
-      companyCode: companyCode.toLowerCase(),
-    });
-    if (!company) {
-      return res.status(404).json({ message: "Company not found." });
-    }
-
-    const customer = await User.findOne({
-      email: normalizeEmail(email),
-      companyId: company._id,
-    });
-
-    if (!customer || !customer.roles?.includes("customer")) {
-      return res.status(400).json({ message: "Invalid email or password." });
-    }
-
-    const isMatch = await bcrypt.compare(password, customer.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid email or password." });
-    }
-
-    const token = buildCustomerToken(customer);
+    const agents = await User.find({
+      companyId: req.user.companyId,
+      roles: { $in: AGENT_ROLES },
+    })
+      .select("name email roles")
+      .lean();
 
     res.json({
-      token,
-      user: {
-        id: customer._id,
-        name: customer.name,
-        email: customer.email,
-        roles: customer.roles,
-        companyId: customer.companyId,
-        companyName: customer.companyName,
-      },
+      agents: agents.map((agent) => ({
+        id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        role: agent.roles?.[0] || "agent",
+      })),
     });
   } catch (error) {
-    console.error("Public login error:", error);
+    console.error("List assignable agents error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -423,10 +236,12 @@ export const getTickets = async (req, res) => {
     const filter = getTicketScope(req);
     const includeInternal = !req.user?.roles?.includes("customer");
     const tickets = await Ticket.find(filter).sort({ createdAt: -1 });
+    // Fetch once and reuse for every ticket instead of a lookup per ticket.
+    const { slaTargets } = await getCompanySettings(req.user.companyId);
     const formatted = [];
 
     for (const ticket of tickets) {
-      formatted.push(await loadCompanyTicketView(ticket, { includeInternal }));
+      formatted.push(await loadCompanyTicketView(ticket, { includeInternal, slaTargets }));
     }
 
     res.json({ tickets: formatted });
@@ -447,12 +262,108 @@ export const getTicket = async (req, res) => {
       return res.status(404).json({ message: "Ticket not found." });
     }
 
+    let companyFallback = "";
+    if (!ticket.customerSnapshot?.company && ticket.companyId) {
+      const company = await Company.findById(ticket.companyId).lean();
+      companyFallback = company?.name || "";
+    }
+    const { slaTargets } = await getCompanySettings(ticket.companyId);
+
     res.json({
       ticket: await loadCompanyTicketView(ticket, {
         includeInternal: !req.user?.roles?.includes("customer"),
+        companyFallback,
+        slaTargets,
       }),
     });
   } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const createTicket = async (req, res) => {
+  try {
+    const {
+      subject,
+      description,
+      severity,
+      channel,
+      customerName,
+      customerEmail,
+      assigneeId,
+    } = req.body;
+
+    if (!subject || !description) {
+      return res.status(400).json({ message: "Subject and description are required." });
+    }
+
+    const company = await Company.findById(req.user.companyId);
+    if (!company) {
+      return res.status(404).json({ message: "Company not found." });
+    }
+
+    let customer = null;
+    if (customerEmail) {
+      customer = await User.findOne({
+        email: normalizeEmail(customerEmail),
+        companyId: company._id,
+      }).lean();
+    }
+
+    let assignedTo = null;
+    let assignee = "Unassigned";
+    if (assigneeId) {
+      const agentUser = await User.findById(assigneeId).select("name email").lean();
+      if (agentUser) {
+        assignedTo = assigneeId;
+        assignee = agentUser.name || agentUser.email || "Agent";
+      }
+    }
+
+    const ticketNumber = `TKT-${Date.now().toString().slice(-6)}`;
+    const displayName = customer?.name || customerName || "Customer";
+    const displayEmail = customer?.email || customerEmail || "";
+
+    const ticket = await Ticket.create({
+      ticketNumber,
+      title: subject,
+      subject,
+      description,
+      status: "open",
+      severity: severity || "medium",
+      channel: channel || "web",
+      companyId: company._id,
+      createdBy: customer?._id || req.user.id,
+      assignedTo,
+      assignee,
+      lastMsg: description,
+      customerSnapshot: {
+        name: displayName,
+        email: displayEmail,
+        company: company.name,
+        initials: initialsFromName(displayName),
+        hue: hueFromEmail(displayEmail),
+      },
+      messages: [
+        {
+          from: "customer",
+          text: description,
+          agent: displayName,
+          authorId: customer?._id || null,
+          read: false,
+        },
+      ],
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      const formatted = await loadCompanyTicketView(ticket);
+      io.to(`company:${company._id.toString()}`).emit("ticket:created", formatted);
+    }
+
+    res.status(201).json({ ticket: await loadCompanyTicketView(ticket) });
+  } catch (error) {
+    console.error("Ticket creation error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -481,25 +392,60 @@ export const addTicketMessage = async (req, res) => {
 
     const role = getPrimaryRole(req.user);
     const from = role === "customer" ? "customer" : "agent";
+    const actingUser = await resolveActingUser(req);
+    const displayName = actingUser.name || actingUser.email || "Agent";
 
-    ticket.messages.push({
+    const newMessage = {
       from,
       text: text.trim(),
-      agent: req.user.name || req.user.email || "Agent",
+      agent: displayName,
       authorId: req.user.id,
       read: false,
-    });
+    };
+    ticket.messages.push(newMessage);
     ticket.lastMsg = text.trim();
+
+    // Auto-claim: the first agent to reply to an unassigned ticket becomes
+    // its owner, taking it out of the shared pool for other agents —
+    // unless the company has turned this behavior off in Settings.
+    if (from === "agent" && !ticket.assignedTo) {
+      const { autoAssignOnReply } = await getCompanySettings(ticket.companyId);
+      if (autoAssignOnReply) {
+        ticket.assignedTo = req.user.id;
+        ticket.assignee = displayName;
+      }
+    }
+
     await ticket.save();
+    const savedMessage = ticket.messages[ticket.messages.length - 1];
 
     const io = req.app.get("io");
     if (io) {
+      // Agent-side room: thread-item shape (formatted time string), matches
+      // what formatTicket() would have produced for this message.
+      const formattedMessage = {
+        id: String(ticket.messages.length),
+        from,
+        text: newMessage.text,
+        agent: displayName,
+        time: savedMessage.time
+          ? new Date(savedMessage.time).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "",
+        read: false,
+      };
       io.to(`ticket:${ticket.ticketNumber}`).emit("ticket:message", {
         ticketNumber: ticket.ticketNumber,
-        message: text.trim(),
-        from,
+        message: formattedMessage,
       });
-      io.to(`company:${ticket.companyId}`).emit("ticket:updated", {
+      // Portal room (keyed by raw Mongo id): raw schema shape, matching
+      // what SupportPortalPage expects (unformatted Date, from/text/agent).
+      // Server always prefixes "ticket:join" rooms with "ticket:" (see
+      // server.js), so the room name must match that, not the bare id.
+      io.to(`ticket:${ticket._id.toString()}`).emit("ticket:message", savedMessage);
+      io.to(`company:${ticket.companyId.toString()}`).emit("ticket:updated", {
         ticketNumber: ticket.ticketNumber,
       });
     }
@@ -531,14 +477,10 @@ export const addTicketNote = async (req, res) => {
       return res.status(404).json({ message: "Ticket not found." });
     }
 
-    await addInternalNote(ticket, text.trim(), req.user);
+    const actingUser = await resolveActingUser(req);
+    await addInternalNote(ticket, text.trim(), { ...actingUser, id: req.user.id });
 
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`company:${ticket.companyId}`).emit("ticket:updated", {
-        ticketNumber: ticket.ticketNumber,
-      });
-    }
+    emitTicketUpdated(req, ticket);
 
     res.json({
       ticket: await loadCompanyTicketView(ticket),
@@ -567,13 +509,7 @@ export const escalateTicket = async (req, res) => {
     }
 
     await escalateTicketThread(ticket);
-
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`company:${ticket.companyId}`).emit("ticket:updated", {
-        ticketNumber: ticket.ticketNumber,
-      });
-    }
+    emitTicketUpdated(req, ticket);
 
     res.json({ ticket: await loadCompanyTicketView(ticket) });
   } catch (error) {
@@ -594,13 +530,7 @@ export const resolveTicket = async (req, res) => {
     }
 
     await resolveTicketThread(ticket, req.user?.id);
-
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`company:${ticket.companyId}`).emit("ticket:updated", {
-        ticketNumber: ticket.ticketNumber,
-      });
-    }
+    emitTicketUpdated(req, ticket);
 
     res.json({ ticket: await loadCompanyTicketView(ticket) });
   } catch (error) {
@@ -608,3 +538,217 @@ export const resolveTicket = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+const PATCHABLE_FIELDS = ["severity", "status", "tags"];
+
+export const patchTicket = async (req, res) => {
+  try {
+    const ticket = await Ticket.findOne({
+      ticketNumber: req.params.ticketNumber,
+      ...getTicketScope(req),
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found." });
+    }
+
+    for (const field of PATCHABLE_FIELDS) {
+      if (field in req.body) {
+        ticket[field] = req.body[field];
+      }
+    }
+
+    // Reopening a resolved ticket clears its resolution markers.
+    if (req.body.status && req.body.status !== "resolved" && ticket.resolvedAt) {
+      ticket.resolvedAt = null;
+      ticket.closedBy = null;
+    }
+
+    await ticket.save();
+    emitTicketUpdated(req, ticket);
+
+    res.json({ ticket: await loadCompanyTicketView(ticket) });
+  } catch (error) {
+    console.error("Ticket patch error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const assignTicket = async (req, res) => {
+  try {
+    const { assigneeId } = req.body;
+    const ticket = await Ticket.findOne({
+      ticketNumber: req.params.ticketNumber,
+      companyId: req.user.companyId,
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found." });
+    }
+
+    const role = getPrimaryRole(req.user);
+    const isOwner = ticket.assignedTo && String(ticket.assignedTo) === String(req.user.id);
+    const isPrivileged = ["admin", "superadmin"].includes(role);
+    if (!isOwner && !isPrivileged) {
+      return res
+        .status(403)
+        .json({ message: "Only the assigned agent or an admin can change assignment." });
+    }
+
+    if (!assigneeId) {
+      ticket.assignedTo = null;
+      ticket.assignee = "Unassigned";
+    } else {
+      const agentUser = await User.findById(assigneeId).select("name email").lean();
+      if (!agentUser) {
+        return res.status(404).json({ message: "Agent not found." });
+      }
+      ticket.assignedTo = assigneeId;
+      ticket.assignee = agentUser.name || agentUser.email || "Agent";
+    }
+
+    await ticket.save();
+    emitTicketUpdated(req, ticket);
+
+    res.json({ ticket: await loadCompanyTicketView(ticket) });
+  } catch (error) {
+    console.error("Ticket assignment error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const SEVERITIES = ["low", "medium", "high", "critical"];
+
+export const getTicketSettings = async (req, res) => {
+  try {
+    const settings = await getCompanySettings(req.user.companyId);
+    res.json({ settings });
+  } catch (error) {
+    console.error("Get ticket settings error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const updateTicketSettings = async (req, res) => {
+  try {
+    if (!req.user.companyId) {
+      return res.status(400).json({ message: "No company associated with this account." });
+    }
+
+    const { slaTargets, autoAssignOnReply, supportHoursNote } = req.body;
+    const update = {};
+
+    if (slaTargets && typeof slaTargets === "object") {
+      for (const [sev, raw] of Object.entries(slaTargets)) {
+        if (!SEVERITIES.includes(sev)) continue;
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value <= 0) {
+          return res.status(400).json({
+            message: `Invalid SLA target for "${sev}" — must be a positive number of minutes.`,
+          });
+        }
+        update[`ticketSettings.slaTargets.${sev}`] = Math.round(value);
+      }
+    }
+    if (autoAssignOnReply !== undefined) {
+      update["ticketSettings.autoAssignOnReply"] = Boolean(autoAssignOnReply);
+    }
+    if (supportHoursNote !== undefined) {
+      update["ticketSettings.supportHoursNote"] = String(supportHoursNote).slice(0, 200);
+    }
+
+    const company = await Company.findByIdAndUpdate(
+      req.user.companyId,
+      { $set: update },
+      { new: true },
+    )
+      .select("ticketSettings")
+      .lean();
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found." });
+    }
+
+    res.json({ settings: await getCompanySettings(req.user.companyId) });
+  } catch (error) {
+    console.error("Update ticket settings error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const RANGE_DAYS = { "7d": 7, "30d": 30, "90d": 90 };
+
+export const getTicketReports = async (req, res) => {
+  try {
+    const days = RANGE_DAYS[req.query.range];
+    const match = { ...getTicketScope(req) };
+    if (days) {
+      match.createdAt = { $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) };
+    }
+
+    const tickets = await Ticket.find(match)
+      .select("status severity channel assignee createdAt resolvedAt")
+      .lean();
+
+    const totals = { total: tickets.length, open: 0, inProgress: 0, escalated: 0, resolved: 0 };
+    const byStatusMap = {};
+    const bySeverityMap = {};
+    const byChannelMap = {};
+    const byAgentMap = {};
+    const byDayMap = {};
+    let resolutionMinutesSum = 0;
+    let resolvedCount = 0;
+
+    for (const t of tickets) {
+      if (t.status === "open") totals.open++;
+      else if (t.status === "in-progress") totals.inProgress++;
+      else if (t.status === "escalated") totals.escalated++;
+      else if (t.status === "resolved") totals.resolved++;
+
+      byStatusMap[t.status] = (byStatusMap[t.status] || 0) + 1;
+      bySeverityMap[t.severity] = (bySeverityMap[t.severity] || 0) + 1;
+      byChannelMap[t.channel] = (byChannelMap[t.channel] || 0) + 1;
+
+      const agentLabel = t.assignee && t.assignee !== "Unassigned" ? t.assignee : "Unassigned";
+      byAgentMap[agentLabel] = (byAgentMap[agentLabel] || 0) + 1;
+
+      const day = new Date(t.createdAt).toISOString().slice(0, 10);
+      byDayMap[day] = (byDayMap[day] || 0) + 1;
+
+      if (t.status === "resolved" && t.resolvedAt) {
+        resolutionMinutesSum += (new Date(t.resolvedAt) - new Date(t.createdAt)) / 60000;
+        resolvedCount++;
+      }
+    }
+
+    // SLA breaches: currently-open tickets whose live remaining time has hit 0.
+    const { slaTargets } = await getCompanySettings(req.user.companyId);
+    const slaBreaches = tickets.filter((t) => {
+      if (t.status === "resolved") return false;
+      return computeSla(t, slaTargets).slaMins <= 0;
+    }).length;
+
+    const volumeByDay = Object.entries(byDayMap)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([date, count]) => ({ date, count }));
+
+    res.json({
+      totals,
+      avgResolutionMinutes: resolvedCount ? Math.round(resolutionMinutesSum / resolvedCount) : 0,
+      slaBreaches,
+      volumeByDay,
+      byStatus: Object.entries(byStatusMap).map(([status, count]) => ({ status, count })),
+      bySeverity: Object.entries(bySeverityMap).map(([severity, count]) => ({ severity, count })),
+      byChannel: Object.entries(byChannelMap).map(([channel, count]) => ({ channel, count })),
+      byAgent: Object.entries(byAgentMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([agent, count]) => ({ agent, count })),
+    });
+  } catch (error) {
+    console.error("Ticket reports error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export { AGENT_ROLES };
