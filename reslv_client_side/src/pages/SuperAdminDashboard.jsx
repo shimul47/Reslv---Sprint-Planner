@@ -434,12 +434,10 @@ export default function SuperAdminDashboard() {
               <ShieldAlert size={14} className="animate-pulse" />{" "}
               NETWORK_ROOT_ACCESS: STATUS_AUTHORIZED
             </div>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter">
+            <div className="text-2xl md:text-3xl font-black text-white tracking-tighter">
               SUPER_NODE:{" "}
-              <span className="text-[#00FF41] drop-shadow-[0_0_10px_rgba(0,255,65,0.5)]">
-                SUPER_ADMIN_ROOT
-              </span>
-            </h1>
+              <span className="text-green-500">SUPER_ADMIN_ROOT</span>
+            </div>
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-emerald-500/60">
               <span className="bg-[#00FF41]/10 text-[#00FF41] border border-[#00FF41]/40 px-2.5 py-0.5 rounded font-black">
                 SECTOR: GLOBAL_CORE

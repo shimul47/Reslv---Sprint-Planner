@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
@@ -16,6 +16,27 @@ function authHeaders(token) {
 const getTicketId = (ticket) =>
   ticket?._id || ticket?.ticketNumber || ticket?.id;
 
+function initialsOf(name) {
+  return (name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+const STATUS_STYLES = {
+  open: "bg-cyan-500/20 text-cyan-300",
+  "in-progress": "bg-blue-500/20 text-blue-300",
+  escalated: "bg-amber-500/20 text-amber-300",
+  resolved: "bg-emerald-500/20 text-emerald-300",
+};
+
+function statusStyle(status) {
+  return STATUS_STYLES[status] || STATUS_STYLES.open;
+}
+
 export default function SupportPortalPage() {
   const { companyCode } = useParams();
   const tokenKey = useMemo(
@@ -27,6 +48,20 @@ export default function SupportPortalPage() {
   const [token, setToken] = useState(
     () => localStorage.getItem(tokenKey) || "",
   );
+  const [companyInfo, setCompanyInfo] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_ROOT}/public/support/${companyCode}/info`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setCompanyInfo(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [companyCode]);
   const [authMode, setAuthMode] = useState("login"); // 'login' or 'signup'
   const [authForm, setAuthForm] = useState({
     name: "",
@@ -43,10 +78,17 @@ export default function SupportPortalPage() {
     description: "",
   });
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const chatEndRef = useRef(null);
 
   // UI States
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Keep the thread pinned to the latest message as new ones arrive.
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeTicket?.messages?.length, activeTicket?.thread?.length]);
 
   const updateTicketList = async (activeToken) => {
     try {
@@ -135,8 +177,33 @@ export default function SupportPortalPage() {
       }
     };
 
+    // Whole-ticket-shape changes (status/severity) are low-frequency, so a
+    // full refetch is simplest and cheap.
     socket.on("ticket:updated", refreshActiveTicket);
-    socket.on("ticket:message", refreshActiveTicket);
+
+    // Chat messages are the hot path — append the pushed message directly
+    // instead of refetching for instant delivery.
+    socket.on("ticket:message", (message) => {
+      setActiveTicket((prev) => {
+        if (!prev) return prev;
+        const messages = prev.messages || prev.thread || [];
+        return {
+          ...prev,
+          messages: [...messages, message],
+          lastMsg: message.text,
+        };
+      });
+      setTickets((prev) =>
+        prev.map((item) =>
+          getTicketId(item) === activeMongoId
+            ? { ...item, lastMsg: message.text }
+            : item,
+        ),
+      );
+    });
+
+    // Reconciliation safety net: catch up on anything missed while disconnected.
+    socket.on("connect", refreshActiveTicket);
 
     return () => socket.disconnect();
   }, [activeMongoId, token, companyCode]);
@@ -211,6 +278,7 @@ export default function SupportPortalPage() {
     const currentId = getTicketId(activeTicket);
     if (!currentId || !message.trim() || !token) return;
 
+    setSending(true);
     try {
       const response = await fetch(
         `${API_ROOT}/public/support/${companyCode}/tickets/${currentId}/messages`,
@@ -237,6 +305,8 @@ export default function SupportPortalPage() {
       setMessage("");
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -245,12 +315,12 @@ export default function SupportPortalPage() {
       <div className="min-h-screen bg-[#0D0F14] text-white flex items-center justify-center p-6">
         <div className="w-full max-w-md rounded-3xl bg-gradient-to-br from-[#10131B] via-[#111827] to-[#0B1220] border border-white/10 p-8 shadow-2xl">
           <div className="text-center mb-8">
-            <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/70 mb-2">
+            <p className="text-xs uppercase tracking-[0.35em] text-cyan-400/70 mb-2">
               Support Portal
             </p>
-            <h1 className="text-2xl font-semibold">
-              {companyCode?.toUpperCase()} Support
-            </h1>
+            <div className="text-3xl font-bold text-cyan-300/80 mb-2 mt-4">
+              {companyInfo?.name || companyCode?.toUpperCase()} Support
+            </div>
           </div>
 
           {error && (
@@ -350,19 +420,44 @@ export default function SupportPortalPage() {
   // Active message array resolution
   const threadMessages = activeTicket?.messages || activeTicket?.thread || [];
 
+  const companyDisplayName =
+    companyInfo?.name ||
+    tickets[0]?.customerSnapshot?.company ||
+    activeTicket?.customerSnapshot?.company ||
+    (companyCode
+      ? companyCode.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      : "Support");
+
   return (
-    <div className="min-h-screen bg-[#07070A] text-white flex">
+    <div className="h-screen overflow-hidden bg-[#07070A] text-white flex">
       {/* Sidebar */}
-      <div className="w-80 border-r border-white/10 bg-[#0B0C10] flex flex-col">
-        <div className="p-6 border-b border-white/10">
+      <div className="w-80 flex-shrink-0 border-r border-white/10 bg-[#0B0C10] flex flex-col min-h-0">
+        {/* Navbar / brand header */}
+        <div className="px-6 pt-5 pb-4 border-b border-white/10 flex-shrink-0 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
+            {initialsOf(companyDisplayName)}
+          </div>
+          <div className="min-w-0">
+            <span className="text-[15px] font-semibold text-white truncate block">
+              {companyDisplayName}
+            </span>
+            {companyInfo?.supportHoursNote && (
+              <span className="text-[11px] text-white/40 truncate block">
+                {companyInfo.supportHoursNote}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="p-6 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-lg">My Tickets</h2>
+            <p className="font-semibold text-lg text-green-300">My Tickets</p>
             <button
               onClick={() => {
                 localStorage.removeItem(tokenKey);
                 setToken("");
               }}
-              className="text-xs text-white/40 hover:text-white"
+              className="text-xs text-white"
             >
               Log out
             </button>
@@ -378,7 +473,7 @@ export default function SupportPortalPage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {tickets.length === 0 ? (
             <p className="text-center text-sm text-white/40 mt-10">
               No tickets found.
@@ -394,8 +489,10 @@ export default function SupportPortalPage() {
                     setActiveTicket(t);
                     setIsComposing(false);
                   }}
-                  className={`w-full text-left p-4 border-b border-white/5 transition-colors ${
-                    isActive ? "bg-white/10" : "hover:bg-white/5"
+                  className={`w-full text-left p-4 border-b border-l-2 border-white/5 transition-colors ${
+                    isActive
+                      ? "bg-white/10 border-l-cyan-400"
+                      : "border-l-transparent hover:bg-white/5"
                   }`}
                 >
                   <div className="flex justify-between items-start mb-1">
@@ -403,29 +500,41 @@ export default function SupportPortalPage() {
                       {t.subject || t.title}
                     </span>
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                        t.status === "resolved"
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : "bg-cyan-500/20 text-cyan-300"
-                      }`}
+                      className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0 ${statusStyle(t.status)}`}
                     >
                       {t.status}
                     </span>
                   </div>
-                  <p className="text-xs text-white/50 truncate">
-                    {t.ticketNumber || currentId}
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-white/50 truncate">
+                      {t.ticketNumber || currentId}
+                    </p>
+                    {t.updatedAt && (
+                      <p className="text-[10px] text-white/30 flex-shrink-0">
+                        {new Date(t.updatedAt).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    )}
+                  </div>
                 </button>
               );
             })
           )}
         </div>
+
+        <div className="flex-shrink-0 px-6 py-3 border-t border-white/10 text-center">
+          <p className="text-[10px] text-white/25 tracking-wide">
+            Powered by <span className="font-medium text-green-300">Reslv</span>
+          </p>
+        </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-[#0D0F14]">
+      <div className="flex-1 min-h-0 flex flex-col bg-[#0D0F14]">
         {isComposing ? (
-          <div className="p-10 max-w-2xl mx-auto w-full">
+          <div className="flex-1 min-h-0 overflow-y-auto p-10 max-w-2xl mx-auto w-full">
             <h2 className="text-2xl font-semibold mb-6">Create a New Ticket</h2>
             {error && (
               <div className="mb-4 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -480,27 +589,18 @@ export default function SupportPortalPage() {
           </div>
         ) : activeTicket ? (
           <>
-            <div className="p-6 border-b border-white/10 bg-[#0B0C10] flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-semibold">
+            <div className="flex-shrink-0 p-6 border-b border-white/10 bg-[#0B0C10] flex justify-between items-center">
+              <div className="min-w-0">
+                <p className="text-xl font-semibold truncate text-white/50">
                   {activeTicket.subject || activeTicket.title}
-                </h2>
+                </p>
                 <p className="text-sm text-white/50 mt-1">
                   Ticket ID: {activeTicket.ticketNumber || activeTicket._id}
                 </p>
               </div>
-              <div className="flex gap-2">
-                {activeTicket.severity && (
-                  <span className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/10 capitalize">
-                    {activeTicket.severity} Priority
-                  </span>
-                )}
+              <div className="flex gap-2 flex-shrink-0">
                 <span
-                  className={`text-xs px-3 py-1 rounded-full border ${
-                    activeTicket.status === "resolved"
-                      ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
-                      : "border-cyan-500/30 text-cyan-400 bg-cyan-500/10"
-                  } capitalize`}
+                  className={`text-xs px-3 py-1 rounded-full capitalize ${statusStyle(activeTicket.status)}`}
                 >
                   {activeTicket.status}
                 </span>
@@ -508,70 +608,104 @@ export default function SupportPortalPage() {
             </div>
 
             {/* Chat Thread */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
               {activeTicket.status === "resolved" && (
                 <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-sm p-4 rounded-xl text-center">
                   This ticket has been marked as <strong>Resolved</strong>.
                 </div>
               )}
 
+              {threadMessages.length === 0 && (
+                <p className="text-center text-sm text-white/30 mt-10">
+                  No messages yet.
+                </p>
+              )}
+
               {threadMessages.map((msg, index) => {
                 const isCustomer =
                   msg.from === "customer" || msg.senderRole === "customer";
+                const senderName = isCustomer
+                  ? "You"
+                  : msg.agent || msg.senderName || "Support Agent";
                 return (
                   <div
                     key={msg._id || msg.id || index}
-                    className={`flex flex-col max-w-[80%] ${
-                      isCustomer ? "ml-auto items-end" : "mr-auto items-start"
+                    className={`flex items-end gap-2 max-w-[80%] ${
+                      isCustomer ? "ml-auto flex-row-reverse" : "mr-auto"
                     }`}
                   >
-                    <span className="text-[11px] text-white/40 mb-1 px-1">
-                      {isCustomer
-                        ? "You"
-                        : msg.agent || msg.senderName || "Support Agent"}{" "}
-                      {msg.time
-                        ? `• ${new Date(msg.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                        : ""}
-                    </span>
                     <div
-                      className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
                         isCustomer
-                          ? "bg-cyan-600 text-white rounded-br-none"
-                          : "bg-white/10 text-white/90 rounded-bl-none"
+                          ? "bg-cyan-500/25 text-cyan-200"
+                          : "bg-white/10 text-white/70"
                       }`}
                     >
-                      {msg.text || msg.message}
+                      {initialsOf(senderName)}
+                    </div>
+                    <div
+                      className={`flex flex-col min-w-0 ${isCustomer ? "items-end" : "items-start"}`}
+                    >
+                      <span className="text-[11px] text-white/40 mb-1 px-1">
+                        {senderName}{" "}
+                        {msg.time
+                          ? `• ${new Date(msg.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                          : ""}
+                      </span>
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                          isCustomer
+                            ? "bg-cyan-600 text-white rounded-br-sm"
+                            : "bg-white/10 text-white/90 rounded-bl-sm"
+                        }`}
+                      >
+                        {msg.text || msg.message}
+                      </div>
                     </div>
                   </div>
                 );
               })}
+              <div ref={chatEndRef} />
             </div>
 
             {/* Chat Input */}
             {activeTicket.status !== "resolved" && (
-              <div className="p-4 bg-[#0B0C10] border-t border-white/10">
+              <div className="flex-shrink-0 p-4 bg-[#0B0C10] border-t border-white/10">
                 <form onSubmit={handleSendMessage} className="flex gap-3">
                   <input
                     type="text"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
+                    disabled={sending}
                     placeholder="Reply to this ticket..."
-                    className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-cyan-400/50"
+                    className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-cyan-400/50 disabled:opacity-50"
                   />
                   <button
                     type="submit"
-                    disabled={!message.trim()}
+                    disabled={!message.trim() || sending}
                     className="rounded-xl bg-white text-black px-6 py-3 text-sm font-semibold hover:bg-white/90 transition-colors disabled:opacity-50"
                   >
-                    Send
+                    {sending ? "Sending…" : "Send"}
                   </button>
                 </form>
               </div>
             )}
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-white/40">
-            Select a ticket from the sidebar to view details.
+          <div className="flex-1 flex flex-col items-center justify-center text-center text-white/40 px-6">
+            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-4 text-2xl">
+              💬
+            </div>
+            <p className="text-white/60 font-medium">
+              {tickets.length === 0
+                ? "No tickets yet"
+                : "Select a ticket from the sidebar"}
+            </p>
+            <p className="text-sm text-white/30 mt-1 max-w-[240px]">
+              {tickets.length === 0
+                ? "Start a new support ticket to get help from our team."
+                : "Choose a conversation to view its messages."}
+            </p>
           </div>
         )}
       </div>

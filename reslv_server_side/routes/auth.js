@@ -37,6 +37,7 @@ router.post("/login", async (req, res) => {
         email: user.email,
         roles: user.roles,
         companyId: user.companyId,
+        companyName: user.companyName,
       },
     });
   } catch (error) {
@@ -66,6 +67,7 @@ router.get("/me", async (req, res) => {
       email: user.email,
       roles: user.roles,
       companyId: user.companyId,
+      companyName: user.companyName,
     });
   } catch (error) {
     res.status(401).json({ message: "Invalid or expired token" });

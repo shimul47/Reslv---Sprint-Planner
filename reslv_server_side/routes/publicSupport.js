@@ -32,6 +32,31 @@ const requireCustomerAuth = async (req, res, next) => {
 };
 
 // -------------------------------------------------------------
+// PUBLIC COMPANY INFO (branding for the portal's pre-login/nav header)
+// -------------------------------------------------------------
+
+const handleGetCompanyInfo = async (req, res) => {
+  try {
+    const { companyCode } = req.params;
+    const company = await Company.findOne({ companyCode }).select(
+      "name ticketSettings.supportHoursNote",
+    );
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found." });
+    }
+
+    res.json({
+      name: company.name,
+      supportHoursNote: company.ticketSettings?.supportHoursNote || "",
+    });
+  } catch (error) {
+    console.error("Public company info error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// -------------------------------------------------------------
 // AUTHENTICATION (SIGNUP & LOGIN)
 // -------------------------------------------------------------
 
@@ -322,8 +347,32 @@ const handleSendMessage = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
-      io.to(ticketId).emit("ticket:message", messageObj);
-      io.to(ticketId).emit("ticket:updated", updatedTicket);
+      // Server always prefixes "ticket:join" rooms with "ticket:" (see
+      // server.js), so this must match that room name, not the bare id —
+      // otherwise other tabs/sessions on this same ticket never see the push.
+      const portalRoom = `ticket:${updatedTicket._id.toString()}`;
+      io.to(portalRoom).emit("ticket:message", messageObj);
+      io.to(portalRoom).emit("ticket:updated", updatedTicket);
+      // Agent-side room: thread-item shape (formatted time string), matching
+      // what the agent inbox's ticket:message listener expects.
+      const formattedMessage = {
+        id: String(updatedTicket.messages.length),
+        from: "customer",
+        text,
+        agent: req.user.name || req.user.email || "Customer",
+        time: new Date(messageObj.time).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        read: false,
+      };
+      io.to(`ticket:${updatedTicket.ticketNumber}`).emit("ticket:message", {
+        ticketNumber: updatedTicket.ticketNumber,
+        message: formattedMessage,
+      });
+      io.to(`company:${updatedTicket.companyId}`).emit("ticket:updated", {
+        ticketNumber: updatedTicket.ticketNumber,
+      });
     }
 
     res.json({ ticket: updatedTicket });
@@ -334,6 +383,8 @@ const handleSendMessage = async (req, res) => {
 };
 
 // Register Routes
+router.get("/:companyCode/info", handleGetCompanyInfo);
+
 router.get("/:companyCode/tickets", requireCustomerAuth, handleGetTickets);
 router.get("/tickets", requireCustomerAuth, handleGetTickets);
 

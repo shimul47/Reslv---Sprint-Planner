@@ -6,13 +6,14 @@ import AppShell from "./pages/AppShell";
 import LoginScreen from "./pages/LoginScreen";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import { InboxView, EscalationsView } from "./components/workspace/Views";
-// import { InboxView, EscalationsView } from "./pages/TicketViews";
-import { ReportsView, SettingsView } from "./components/workspace/Placeholders";
+import { ReportsView } from "./components/workspace/Reports";
+import { SettingsView } from "./components/workspace/Settings";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
 import TeamManagement from "./pages/TeamManagement";
 import BillingPage from "./pages/BillingPage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import SupportPortalPage from "./pages/SupportPortalPage";
+import TicketSystemPage from "./pages/TicketSystemPage";
 
 function RequireAuth({ allowedRoles, children }) {
   const { user, loading } = useContext(AuthContext);
@@ -99,15 +100,47 @@ export default function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={null} />
-        <Route path="tickets/inbox" element={<InboxView />} />
-        <Route path="tickets/escalations" element={<EscalationsView />} />
-        <Route path="tickets/reports" element={<ReportsView />} />
-        <Route path="tickets/settings" element={<SettingsView />} />
         <Route path="sprint-planner" element={<SprintPlannerPage />} />
         <Route path="admin/team" element={<TeamManagement />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="billing/success" element={<BillingPage />} />
         <Route path="billing/cancelled" element={<BillingPage />} />
+      </Route>
+      <Route
+        path="/tickets"
+        element={
+          <RequireAuth
+            allowedRoles={[
+              "superadmin",
+              "admin",
+              "agent",
+              "employee",
+              "sprint_planner",
+            ]}
+          >
+            <TicketSystemPage onLogout={logout} />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="inbox" replace />} />
+        <Route path="inbox" element={<InboxView />} />
+        <Route path="escalations" element={<EscalationsView />} />
+        <Route
+          path="reports"
+          element={
+            <RequireAuth allowedRoles={["superadmin", "admin"]}>
+              <ReportsView />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <RequireAuth allowedRoles={["superadmin", "admin"]}>
+              <SettingsView />
+            </RequireAuth>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

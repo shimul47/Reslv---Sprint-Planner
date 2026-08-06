@@ -9,7 +9,7 @@ import authRoutes from "./routes/auth.js";
 import superadminRoutes from "./routes/superadmin.js";
 import teamRoutes from "./routes/team.js";
 import inviteRoutes from "./routes/invites.js";
-import ticketRoutes from "./routes/tickets.js";
+import ticketRoutes from "./routes/ticketRoutes.js";
 import publicSupportRoutes from "./routes/publicSupport.js";
 import paymentRoutes, { handleWebhook } from "./routes/paymentRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";

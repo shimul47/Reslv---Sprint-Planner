@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -18,6 +18,7 @@ import {
   TKT,
 } from "../../data/workspaceData.js";
 import { Av, StatusBadge } from "./Atoms.jsx";
+import api from "../../api/axios.js";
 
 const NOTIF_ICON = {
   "arrow-right": <ArrowRight size={12} className="text-[#BB5E18]" />,
@@ -155,7 +156,7 @@ export function CustomerPanel({ cx, tickets = [], onClose }) {
   );
 }
 
-export function NewTicketModal({ onClose }) {
+export function NewTicketModal({ onClose, onCreated }) {
   const [f, setF] = useState({
     email: "",
     subject: "",
@@ -164,9 +165,45 @@ export function NewTicketModal({ onClose }) {
     assignee: "",
     desc: "",
   });
+  const [agents, setAgents] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
   const inp =
     "w-full px-3.5 py-2.5 rounded-xl border border-[rgba(128,128,200,0.2)] bg-[#F8F8FF] text-[13px] text-[#18182E] placeholder-[#C8C8E0] focus:outline-none focus:border-[#80A8FF] focus:bg-white focus:ring-2 focus:ring-[rgba(128,168,255,0.12)] transition-all";
+
+  useEffect(() => {
+    api
+      .get("/tickets/team/agents")
+      .then((res) => setAgents(res.data?.agents || []))
+      .catch(() => setAgents([]));
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!f.subject.trim() || !f.desc.trim()) {
+      setError("Subject and description are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.post("/tickets", {
+        subject: f.subject.trim(),
+        description: f.desc.trim(),
+        severity: f.sev,
+        channel: f.ch,
+        customerEmail: f.email.trim() || undefined,
+        assigneeId: f.assignee || undefined,
+      });
+      onCreated?.();
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to create ticket.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -186,11 +223,18 @@ export function NewTicketModal({ onClose }) {
           </div>
           <button
             onClick={onClose}
+            type="button"
             className="w-8 h-8 rounded-xl flex items-center justify-center text-[#C0C0D8] hover:bg-[#EEF0FF] hover:text-[#5B5BD6] transition-colors"
           >
             <X size={15} />
           </button>
         </div>
+        <form onSubmit={handleSubmit}>
+        {error && (
+          <div className="mx-6 mt-4 px-3.5 py-2.5 rounded-xl bg-[#FFEEF1] text-[#CC1836] text-[12px] font-medium">
+            {error}
+          </div>
+        )}
         <div className="px-6 py-5 space-y-4">
           <div>
             <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
@@ -257,9 +301,11 @@ export function NewTicketModal({ onClose }) {
                 className={`${inp} appearance-none cursor-pointer`}
               >
                 <option value="">Unassigned</option>
-                <option>Alex Kim</option>
-                <option>Jamie Torres</option>
-                <option>Marcus Chen</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -279,14 +325,20 @@ export function NewTicketModal({ onClose }) {
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-[rgba(128,128,200,0.08)] bg-[#F8F8FF]">
           <button
             onClick={onClose}
+            type="button"
             className="px-4 py-2 text-[13px] text-[#9898B8] hover:text-[#6B6B90] transition-colors"
           >
             Cancel
           </button>
-          <button className="px-5 py-2 bg-[#80A8FF] text-white text-[13px] font-semibold rounded-xl hover:bg-[#6B98EE] transition-colors shadow-sm shadow-[rgba(128,168,255,0.25)]">
-            Create Ticket
+          <button
+            type="submit"
+            disabled={submitting}
+            className="px-5 py-2 bg-[#80A8FF] text-white text-[13px] font-semibold rounded-xl hover:bg-[#6B98EE] transition-colors shadow-sm shadow-[rgba(128,168,255,0.25)] disabled:opacity-60"
+          >
+            {submitting ? "Creating…" : "Create Ticket"}
           </button>
         </div>
+        </form>
       </div>
     </div>
   );
