@@ -1,7 +1,8 @@
 import stripe from "../config/stripe.js";
-import { PRICE_IDS, PLAN_BY_PRICE_ID } from "../config/plans.js";
+import { TIERS, PRICE_IDS, PLAN_BY_PRICE_ID, PLAN_DISPLAY, TIER_CONFIG } from "../config/plans.js";
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
+import { getCompanyPlan } from "../utils/planAccess.js";
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
@@ -24,19 +25,21 @@ async function getOrCreateSubscriptionForReq(req) {
 }
 
 // POST /api/payments/create-checkout-session
-// body: { billingCycle: "monthly" | "yearly" }
+// body: { tier: "starter" | "professional" | "enterprise", billingCycle: "monthly" | "yearly" }
 export const createCheckoutSession = async (req, res) => {
   try {
-    const { billingCycle } = req.body;
+    const { tier, billingCycle } = req.body;
+    if (!TIERS.includes(tier)) {
+      return res.status(400).json({ message: `tier must be one of: ${TIERS.join(", ")}` });
+    }
     if (!["monthly", "yearly"].includes(billingCycle)) {
       return res.status(400).json({ message: "billingCycle must be 'monthly' or 'yearly'" });
     }
 
-    const priceId =
-      billingCycle === "monthly" ? PRICE_IDS.premium_monthly : PRICE_IDS.premium_yearly;
+    const priceId = PRICE_IDS[`${tier}_${billingCycle}`];
     if (!priceId) {
       return res.status(500).json({
-        message: `Missing Stripe price ID for ${billingCycle}. Set it in your .env.`,
+        message: `Missing Stripe price ID for ${tier} ${billingCycle}. Set it in your .env.`,
       });
     }
 
@@ -96,14 +99,31 @@ export const createPortalSession = async (req, res) => {
 };
 
 // GET /api/payments/subscription
+// Returns the raw Subscription doc plus the resolved effective plan
+// (inviteLimit/features), since Stripe status can make the *effective*
+// plan differ from the stored `plan` field (e.g. a lapsed subscription).
 export const getSubscription = async (req, res) => {
   try {
-    const { subscription } = await getOrCreateSubscriptionForReq(req);
-    res.json(subscription);
+    const { user, subscription } = await getOrCreateSubscriptionForReq(req);
+    const plan = await getCompanyPlan(user.companyId);
+    res.json({ subscription: subscription.toObject(), plan });
   } catch (error) {
     console.error("getSubscription error:", error.message);
     res.status(error.status || 500).json({ message: error.message || "Server error" });
   }
+};
+
+// GET /api/payments/plans
+// Static tier catalog (pricing + facility list) for rendering the Billing
+// page's upgrade cards. Auth-only, no role restriction.
+export const getPlans = async (_req, res) => {
+  const tiers = TIERS.map((id) => ({
+    id,
+    inviteLimit: TIER_CONFIG[id].inviteLimit,
+    features: TIER_CONFIG[id].features,
+    ...PLAN_DISPLAY[id],
+  }));
+  res.json({ tiers });
 };
 
 // POST /api/payments/webhook  (mounted with express.raw(), NOT express.json())
@@ -171,7 +191,11 @@ export const handleWebhook = async (req, res) => {
 
 async function applySubscriptionUpdate(stripeSubscription) {
   const priceId = stripeSubscription.items.data[0]?.price?.id;
-  const planInfo = PLAN_BY_PRICE_ID[priceId] || { plan: "premium", billingCycle: null };
+  let planInfo = PLAN_BY_PRICE_ID[priceId];
+  if (!planInfo) {
+    console.warn(`applySubscriptionUpdate: unrecognized price ID "${priceId}", defaulting to starter`);
+    planInfo = { plan: "starter", billingCycle: null };
+  }
 
   const companyId = stripeSubscription.metadata?.companyId;
 

@@ -25,13 +25,18 @@ export const getInviteByToken = async (req, res) => {
 
 export const acceptInvite = async (req, res) => {
   try {
-    const { token, name, password } = req.body;
+    const { token, name, phone, password } = req.body;
 
-    const invite = await Invite.findOne({
-      token,
-      status: "Pending",
-      expiresAt: { $gt: new Date() },
-    });
+    if (!name?.trim() || !phone?.trim() || !password) {
+      return res
+        .status(400)
+        .json({ message: "Name, phone, and password are required." });
+    }
+
+    // No expiresAt filter here — the Invite model's TTL index on createdAt
+    // already deletes the document once it's actually expired, so a
+    // "Pending" invite that still exists is by definition still valid.
+    const invite = await Invite.findOne({ token, status: "Pending" });
 
     if (!invite) {
       return res
@@ -48,12 +53,14 @@ export const acceptInvite = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
-      name,
+      name: name.trim(),
+      phone: phone.trim(),
       email: invite.email,
       password: hashedPassword,
       companyId: company._id,
       companyName: company.name,
-      roles: [invite.role],
+      roles: invite.roles?.length ? invite.roles : ["agent"],
+      inviteLimit: invite.inviteLimit || 5,
       invitedBy: invite.invitedBy,
     });
 
@@ -67,12 +74,13 @@ export const acceptInvite = async (req, res) => {
     );
 
     res.json({
-      message: "Account created successfully. You can now log in.",
+      message: "Account created successfully.",
       token: tokenValue,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         roles: user.roles,
         companyId: user.companyId,
         companyName: user.companyName,

@@ -11,8 +11,12 @@ import {
   Trash2,
   Building,
   Copy,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import ScrambledText from "../components/ScrambledText";
+import api from "../api/axios";
 
 // =========================================================================
 // 1. INLINE BACKGROUND MATRIX CANVAS COMPONENT (UNTOUCHED)
@@ -105,13 +109,14 @@ export default function SuperAdminDashboard() {
   });
 
   const [newAdmin, setNewAdmin] = useState({
-    name: "",
     email: "",
     companyId: "",
     level: "SysOp Admin",
     inviteLimit: 5,
   });
   const [newCompany, setNewCompany] = useState({ name: "", sector: "" });
+  const [editingLimitId, setEditingLimitId] = useState(null);
+  const [limitDraft, setLimitDraft] = useState("");
 
   // Add your actual backend URL/Token here
   const API_BASE = "http://localhost:5000/api/superadmin"; // Adjust to your backend port
@@ -294,51 +299,27 @@ export default function SuperAdminDashboard() {
     ]);
   };
 
-  // CREATE ADMIN NODE (POST to Backend)
+  // INVITE ADMIN NODE — routes through the same invite→email→accept
+  // pipeline company admins use for their own team, instead of creating the
+  // account directly with a default password. The admin isn't real until
+  // they accept, so it isn't added to the admins table here.
   const handleCreateAdmin = async (e) => {
     e.preventDefault();
-    if (!newAdmin.name.trim() || !newAdmin.email.trim() || !newAdmin.companyId)
-      return;
+    if (!newAdmin.email.trim() || !newAdmin.companyId) return;
 
     try {
-      const res = await fetch(`${API_BASE}/admins`, {
-        method: "POST",
-        headers: fetchHeaders,
-        body: JSON.stringify({
-          name: newAdmin.name.trim(),
-          email: newAdmin.email.trim(),
-          companyId: newAdmin.companyId,
-          inviteLimit: Number(newAdmin.inviteLimit) || 5,
-        }),
+      await api.post("/team/invite", {
+        email: newAdmin.email.trim(),
+        roles: ["admin"],
+        companyId: newAdmin.companyId,
+        inviteLimit: Number(newAdmin.inviteLimit) || 5,
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to provision admin");
-
-      const generatedAdmin = {
-        id: data.admin.id,
-        name: data.admin.name,
-        email: data.admin.email,
-        companyId: data.admin.companyId,
-        companyName: data.admin.companyName,
-        level: newAdmin.level,
-        status: "ACTIVE",
-      };
-
-      setAdmins((prev) => [generatedAdmin, ...prev]);
-      setCompanies((prev) =>
-        prev.map((c) =>
-          c.id === newAdmin.companyId
-            ? { ...c, adminsCount: c.adminsCount + 1 }
-            : c,
-        ),
-      );
 
       setSystemLogs((prev) => [
         {
           id: `LOG_${Math.floor(1000 + Math.random() * 9000)}`,
           node: "NODE_ROOT_PROVISION",
-          event: `NEW_ADMIN_TRANSMITTED: ${generatedAdmin.email}`,
+          event: `ADMIN_INVITE_TRANSMITTED: ${newAdmin.email.trim()}`,
           operator: "SUPER_ROOT",
           timestamp: new Date()
             .toISOString()
@@ -348,15 +329,16 @@ export default function SuperAdminDashboard() {
         ...prev,
       ]);
 
+      const sentEmail = newAdmin.email.trim();
       setNewAdmin({
-        name: "",
         email: "",
         companyId: companies[0]?.id || "",
         level: "SysOp Admin",
         inviteLimit: 5,
       });
+      alert(`INVITE_TRANSMITTED: ${sentEmail} will receive an email to set up their account.`);
     } catch (error) {
-      alert(`SYSTEM_ERROR: ${error.message}`);
+      alert(`SYSTEM_ERROR: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -388,6 +370,49 @@ export default function SuperAdminDashboard() {
       },
       ...prev,
     ]);
+  };
+
+  // EDIT AN EXISTING ADMIN'S INVITE LIMIT — for a company already declared;
+  // separate from the one-time limit set at invite time.
+  const startEditLimit = (admin) => {
+    setEditingLimitId(admin.id || admin._id);
+    setLimitDraft(String(admin.inviteLimit ?? 5));
+  };
+
+  const cancelEditLimit = () => {
+    setEditingLimitId(null);
+    setLimitDraft("");
+  };
+
+  const saveLimit = async (admin) => {
+    const adminId = admin.id || admin._id;
+    const newLimit = Number(limitDraft);
+    if (!Number.isFinite(newLimit) || newLimit < 1) {
+      alert("SYSTEM_ERROR: Invite limit must be a positive number.");
+      return;
+    }
+
+    try {
+      await api.put(`/superadmin/admins/${adminId}`, { inviteLimit: newLimit });
+      setAdmins((prev) =>
+        prev.map((a) =>
+          (a.id || a._id) === adminId ? { ...a, inviteLimit: newLimit } : a,
+        ),
+      );
+      setSystemLogs((prev) => [
+        {
+          id: `LOG_${Math.floor(1000 + Math.random() * 9000)}`,
+          node: "NODE_LIMIT_ADJUST",
+          event: `INVITE_LIMIT_SET: ${admin.email} -> ${newLimit}`,
+          operator: "SUPER_ROOT",
+          timestamp: new Date().toISOString().replace("T", " ").substring(0, 19),
+        },
+        ...prev,
+      ]);
+      cancelEditLimit();
+    } catch (error) {
+      alert(`SYSTEM_ERROR: ${error.response?.data?.error || error.message}`);
+    }
   };
 
   const navTabs = [
@@ -646,23 +671,8 @@ export default function SuperAdminDashboard() {
                   </div>
                   <form
                     onSubmit={handleCreateAdmin}
-                    className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
+                    className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end"
                   >
-                    <div>
-                      <label className="block text-[10px] font-bold text-emerald-500/60 uppercase mb-1">
-                        Admin Full Name
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Rafiq Ahmed"
-                        value={newAdmin.name}
-                        onChange={(e) =>
-                          setNewAdmin({ ...newAdmin, name: e.target.value })
-                        }
-                        className="w-full bg-black/80 border border-[#00FF41]/30 focus:border-[#00FF41] rounded p-2 text-xs text-white outline-none font-mono focus:ring-1 focus:ring-[#00FF41]"
-                      />
-                    </div>
                     <div>
                       <label className="block text-[10px] font-bold text-emerald-500/60 uppercase mb-1">
                         Security Email Key
@@ -725,7 +735,7 @@ export default function SuperAdminDashboard() {
                       type="submit"
                       className="w-full bg-transparent border-2 border-[#00FF41] text-[#00FF41] hover:bg-[#00FF41] hover:text-black py-2 rounded text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(0,255,65,0.2)] hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] cursor-pointer active:scale-98"
                     >
-                      DEPLOY_ADMIN_NODE
+                      TRANSMIT_ADMIN_INVITE
                     </button>
                   </form>
                 </div>
@@ -753,6 +763,7 @@ export default function SuperAdminDashboard() {
                           <th className="p-4">Security_Email_Hash</th>
                           <th className="p-4">Company_Binding</th>
                           <th className="p-4">Access_Clearance</th>
+                          <th className="p-4">Invite_Limit</th>
                           <th className="p-4 text-right">Action_Protocol</th>
                         </>
                       )}
@@ -837,6 +848,56 @@ export default function SuperAdminDashboard() {
                             <span className="text-[10px] bg-[#00FF41]/10 border border-[#00FF41]/40 text-[#00FF41] px-2 py-0.5 rounded font-black uppercase tracking-wider">
                               {admin.level || admin.roles?.[0]}
                             </span>
+                          </td>
+                          <td className="p-4">
+                            {editingLimitId === (admin.id || admin._id) ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={limitDraft}
+                                  autoFocus
+                                  onChange={(e) => setLimitDraft(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveLimit(admin);
+                                    if (e.key === "Escape") cancelEditLimit();
+                                  }}
+                                  className="w-16 bg-black/80 border border-[#00FF41]/40 focus:border-[#00FF41] rounded p-1.5 text-xs text-white outline-none font-mono"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => saveLimit(admin)}
+                                  title="Save"
+                                  className="text-[#00FF41] hover:text-white p-1 rounded hover:bg-[#00FF41]/10 transition-colors cursor-pointer"
+                                >
+                                  <Check size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEditLimit}
+                                  title="Cancel"
+                                  className="text-emerald-500/50 hover:text-red-400 p-1 rounded hover:bg-red-950/30 transition-colors cursor-pointer"
+                                >
+                                  <X size={13} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => startEditLimit(admin)}
+                                title="Edit invite limit"
+                                className="flex items-center gap-1.5 text-emerald-300 hover:text-[#00FF41] transition-colors cursor-pointer group"
+                              >
+                                <span className="font-black">
+                                  {admin.inviteLimit ?? 5}
+                                </span>
+                                <Pencil
+                                  size={11}
+                                  className="opacity-40 group-hover:opacity-100 transition-opacity"
+                                />
+                              </button>
+                            )}
                           </td>
                           <td className="p-4 text-right">
                             <button

@@ -2,7 +2,9 @@ import { useContext, useEffect, useState } from "react";
 import {
   ArrowRight,
   BarChart2,
+  CheckCircle,
   ChevronDown,
+  Lock,
   LogOut,
   Plus,
   Settings,
@@ -14,11 +16,15 @@ import { APP_ORG, APP_TITLE } from "../data/workspaceData.js";
 import { Av } from "./workspace/Atoms.jsx";
 import api from "../api/axios.js";
 import { AuthContext } from "../context/AuthContext.jsx";
+import RoleSwitcher from "./RoleSwitcher.jsx";
+import { roleCan } from "../utils/permissions.js";
 
 export default function Sidebar({ nav, setNav, onNew, onLogout }) {
-  const { user } = useContext(AuthContext);
-  const isAdmin = ["admin", "superadmin"].includes(user?.roles?.[0]);
-  const [counts, setCounts] = useState({ open: 0, escalated: 0 });
+  const { user, activeRole, plan } = useContext(AuthContext);
+  const isAdmin = roleCan(activeRole, user?.roles, ["admin", "superadmin"]);
+  const isSuperAdmin = user?.roles?.includes("superadmin");
+  const reportsLocked = !isSuperAdmin && !plan?.features?.reports;
+  const [counts, setCounts] = useState({ unread: 0, escalated: 0, resolved: 0 });
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -26,10 +32,9 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
         const response = await api.get("/tickets");
         const tickets = response.data?.tickets || [];
         setCounts({
-          open: tickets.filter(
-            (t) => t.status === "open" || t.status === "in-progress",
-          ).length,
+          unread: tickets.reduce((sum, t) => sum + (t.unreadCount || 0), 0),
           escalated: tickets.filter((t) => t.status === "escalated").length,
+          resolved: tickets.filter((t) => t.status === "resolved").length,
         });
       } catch (error) {
         console.error("Unable to load sidebar ticket counts:", error);
@@ -58,7 +63,7 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
       id: "inbox",
       label: "Inbox",
       icon: <Inbox size={15} />,
-      badge: counts.open,
+      badge: counts.unread,
     },
     {
       id: "escalations",
@@ -67,9 +72,20 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
       badge: counts.escalated,
       warn: true,
     },
+    {
+      id: "resolved",
+      label: "Resolved",
+      icon: <CheckCircle size={15} />,
+      badge: counts.resolved,
+    },
     ...(isAdmin
       ? [
-          { id: "reports", label: "Reports", icon: <BarChart2 size={15} /> },
+          {
+            id: "reports",
+            label: "Reports",
+            icon: reportsLocked ? <Lock size={15} /> : <BarChart2 size={15} />,
+            locked: reportsLocked,
+          },
           { id: "settings", label: "Settings", icon: <Settings size={15} /> },
         ]
       : []),
@@ -113,8 +129,9 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
         {NAV.map((item) => (
           <button
             key={item.id}
-            onClick={() => setNav(item.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all ${nav === item.id ? "bg-white text-[#18182E] font-semibold shadow-sm" : "text-[#6B6B90] hover:bg-[rgba(255,255,255,0.55)] hover:text-[#18182E]"}`}
+            onClick={() => (item.locked ? setNav("billing") : setNav(item.id))}
+            title={item.locked ? "Requires the Professional plan or higher" : undefined}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all ${item.locked ? "opacity-60" : ""} ${nav === item.id ? "bg-white text-[#18182E] font-semibold shadow-sm" : "text-[#6B6B90] hover:bg-[rgba(255,255,255,0.55)] hover:text-[#18182E]"}`}
           >
             <span
               className={nav === item.id ? "text-[#80A8FF]" : "text-[#C0C0D8]"}
@@ -148,9 +165,7 @@ export default function Sidebar({ nav, setNav, onNew, onLogout }) {
             <p className="text-[12px] font-semibold text-[#18182E] truncate">
               {user?.name || "Unknown"}
             </p>
-            <p className="text-[11px] text-[#A8A8C0] capitalize">
-              {user?.roles?.[0] || "Agent"}
-            </p>
+            <RoleSwitcher className="text-[11px] text-[#A8A8C0]" />
           </div>
           <button
             onClick={onLogout}

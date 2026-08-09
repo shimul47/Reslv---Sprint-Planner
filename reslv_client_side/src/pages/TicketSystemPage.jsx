@@ -5,6 +5,7 @@ import { NewTicketModal } from "../components/workspace/Overlays";
 
 function navIdFromPath(pathname) {
   if (pathname.startsWith("/tickets/escalations")) return "escalations";
+  if (pathname.startsWith("/tickets/resolved")) return "resolved";
   if (pathname.startsWith("/tickets/reports")) return "reports";
   if (pathname.startsWith("/tickets/settings")) return "settings";
   return "inbox";
@@ -13,8 +14,10 @@ function navIdFromPath(pathname) {
 const NAV_TO_PATH = {
   inbox: "/tickets/inbox",
   escalations: "/tickets/escalations",
+  resolved: "/tickets/resolved",
   reports: "/tickets/reports",
   settings: "/tickets/settings",
+  billing: "/billing",
 };
 
 export default function TicketSystemPage({ onLogout }) {

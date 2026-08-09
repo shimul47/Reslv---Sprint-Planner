@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { ESC_STEPS, TKT } from "../../data/workspaceData.js";
 import { Av, SLABar, SevBadge, StatusBadge, Tag } from "./Atoms.jsx";
-import { Bubble, EscalationStepper, TypingIndicator } from "./Conversation.jsx";
+import { Bubble, EscalationStepper } from "./Conversation.jsx";
 import { CustomerPanel } from "./Overlays.jsx";
 import api from "../../api/axios.js";
 import { io } from "socket.io-client";
@@ -42,28 +42,43 @@ function channelIcon(channel) {
 }
 
 export function TicketRow({ ticket, selected, onClick }) {
+  const hasUnread = (ticket.unreadCount || 0) > 0;
   return (
     <button
       onClick={onClick}
       className={`w-full text-left px-4 py-3.5 border-b border-[rgba(128,128,200,0.08)] transition-all duration-100 border-l-[3px] group ${selected ? "bg-[#EEF0FF] border-l-[#80A8FF]" : "border-l-transparent hover:bg-[#F5F5FF] hover:border-l-[rgba(128,168,255,0.4)]"}`}
     >
       <div className="flex items-start gap-3">
-        <Av initials={ticket.customer.initials} hue={ticket.customer.hue} />
+        <div className="relative flex-shrink-0">
+          <Av initials={ticket.customer.initials} hue={ticket.customer.hue} />
+          {hasUnread && (
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#5B5BD6] ring-2 ring-white" />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
-            <span className="text-[11px] font-mono text-[#B0B0CC]">
+            <span
+              className={`text-[11px] font-mono ${hasUnread ? "text-[#6B6B90] font-bold" : "text-[#B0B0CC]"}`}
+            >
               {ticket.id}
             </span>
-            <span className="text-[11px] text-[#C0C0D8] flex-shrink-0">
-              {ticket.ts}
-            </span>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {hasUnread && (
+                <span className="text-[10px] font-bold text-white bg-[#5B5BD6] rounded-full min-w-[16px] h-[16px] px-1 flex items-center justify-center leading-none">
+                  {ticket.unreadCount}
+                </span>
+              )}
+              <span className="text-[11px] text-[#C0C0D8]">{ticket.ts}</span>
+            </div>
           </div>
           <p
-            className={`text-[13px] font-semibold leading-snug mb-1 truncate ${selected ? "text-[#2A2855]" : "text-[#18182E]"}`}
+            className={`text-[13px] leading-snug mb-1 truncate ${hasUnread ? "font-bold" : "font-semibold"} ${selected ? "text-[#2A2855]" : "text-[#18182E]"}`}
           >
             {ticket.subject}
           </p>
-          <p className="text-[12px] text-[#9898B8] truncate mb-2 leading-relaxed">
+          <p
+            className={`text-[12px] truncate mb-2 leading-relaxed ${hasUnread ? "text-[#4A4A6A] font-semibold" : "text-[#9898B8]"}`}
+          >
             {ticket.lastMsg}
           </p>
           <div className="flex items-center gap-2 flex-wrap">
@@ -165,7 +180,6 @@ export function TicketDetail({
   const [tab, setTab] = useState("thread");
   const [msg, setMsg] = useState("");
   const [note, setNote] = useState("");
-  const [typing, setTyping] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [agents, setAgents] = useState([]);
@@ -183,7 +197,7 @@ export function TicketDetail({
   const canManageAssignment =
     !ticket.assignedTo ||
     String(ticket.assignedTo) === String(user?.id) ||
-    ["admin", "superadmin"].includes(user?.roles?.[0]);
+    (user?.roles?.some((r) => ["admin", "superadmin"].includes(r)) ?? false);
 
   useEffect(() => {
     setTab("thread");
@@ -195,12 +209,6 @@ export function TicketDetail({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [ticket.thread.length, tab]);
-
-  useEffect(() => {
-    if (tab !== "chat") return;
-    const t = setTimeout(() => setTyping(true), 1200);
-    return () => clearTimeout(t);
-  }, [tab, ticket.id]);
 
   const tabs = [
     { id: "thread", label: "Thread" },
@@ -439,7 +447,6 @@ export function TicketDetail({
               .map((m) => (
                 <Bubble key={m.id} msg={m} cx={ticket.customer} />
               ))}
-            {typing && <TypingIndicator name={ticket.customer.name} />}
             <div ref={endRef} />
           </div>
           <div className="flex-shrink-0 px-4 py-3 border-t border-[rgba(128,128,200,0.1)] bg-white">
@@ -650,13 +657,25 @@ export function useTicketFeed(selectedTicketId) {
     // Chat messages are the hot path — append the pushed payload directly
     // instead of refetching the whole ticket list for instant delivery.
     socket.on("ticket:message", ({ ticketNumber, message }) => {
-      setTickets((prev) =>
-        prev.map((t) =>
-          t.id === ticketNumber
-            ? { ...t, thread: [...t.thread, message], lastMsg: message.text }
-            : t,
-        ),
-      );
+      setTickets((prev) => {
+        const idx = prev.findIndex((t) => t.id === ticketNumber);
+        if (idx === -1) return prev;
+        // A ticket that's currently open counts as read as soon as it
+        // arrives; otherwise it bolds and its unread badge ticks up.
+        const isOpenNow = ticketNumber === selectedTicketId;
+        const bumpsUnread = message.from === "customer" && !isOpenNow;
+        const updated = {
+          ...prev[idx],
+          thread: [...prev[idx].thread, message],
+          lastMsg: message.text,
+          unreadCount: bumpsUnread ? (prev[idx].unreadCount || 0) + 1 : prev[idx].unreadCount,
+        };
+        // Move it to the top, same as the backend's most-recent-activity sort.
+        const next = prev.slice();
+        next.splice(idx, 1);
+        next.unshift(updated);
+        return next;
+      });
     });
 
     // Reconciliation safety net: catch up on anything missed while disconnected.
@@ -667,7 +686,8 @@ export function useTicketFeed(selectedTicketId) {
 
   return { tickets, refreshTickets };
 }
-export function InboxView() {
+export function InboxView({ mode = "active" }) {
+  const isResolvedMode = mode === "resolved";
   const [selectedId, setSelectedId] = useState(null);
   const { tickets, refreshTickets } = useTicketFeed(selectedId);
 
@@ -676,15 +696,25 @@ export function InboxView() {
   const [channelF, setChannelF] = useState("all");
   const [showCX, setShowCX] = useState(false);
 
-  // Auto-select the first real ticket only after the API data successfully loads
+  // Opening a ticket clears its unread badge/bold state, Facebook-style.
+  // The call is cheap and idempotent (no-op server-side once already read).
   useEffect(() => {
-    if (tickets.length > 0 && !tickets.some((t) => t.id === selectedId)) {
-      setSelectedId(tickets[0].id);
-    }
-  }, [tickets, selectedId]);
+    if (!selectedId) return;
+    api
+      .patch(`/tickets/${selectedId}/read`)
+      .then(() => refreshTickets())
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Resolved tickets have their own dedicated section — the active inbox
+  // never shows them, regardless of the status filter chosen there.
+  const scoped = tickets.filter((t) =>
+    isResolvedMode ? t.status === "resolved" : t.status !== "resolved",
+  );
 
   // Filter directly from the dynamic tickets array
-  const filtered = tickets.filter((t) => {
+  const filtered = scoped.filter((t) => {
     const q = search.toLowerCase();
     // Optional chaining prevents crashes if backend data is missing fields
     const mq =
@@ -785,9 +815,9 @@ export function InboxView() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
-            {["all", "open", "in-progress", "escalated", "resolved"].map(
-              (s) => (
+          {!isResolvedMode && (
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
+              {["all", "open", "in-progress", "escalated"].map((s) => (
                 <button
                   key={s}
                   onClick={() => setStatusF(s)}
@@ -799,9 +829,9 @@ export function InboxView() {
                       ? "In Progress"
                       : s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
-              ),
-            )}
-          </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
             {["all", "email", "chat", "phone", "web"].map((c) => (
               <button
@@ -840,14 +870,20 @@ export function InboxView() {
                 <Search size={20} className="text-[#D3D3FF]" />
               </div>
               <p className="text-[13px] font-semibold text-[#6B6B90]">
-                {tickets.length === 0 ? "No tickets yet" : "No tickets match"}
+                {scoped.length === 0
+                  ? isResolvedMode
+                    ? "No resolved tickets yet"
+                    : "No tickets yet"
+                  : "No tickets match"}
               </p>
               <p className="text-[12px] text-[#C0C0D8] mt-1">
-                {tickets.length === 0
-                  ? "When customers reach out, they will appear here."
+                {scoped.length === 0
+                  ? isResolvedMode
+                    ? "Tickets marked resolved will show up here."
+                    : "When customers reach out, they will appear here."
                   : "Try adjusting your search or filters"}
               </p>
-              {tickets.length > 0 && (
+              {scoped.length > 0 && (
                 <button
                   onClick={() => {
                     setSearch("");
@@ -891,20 +927,34 @@ export function InboxView() {
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#F7F7FF]">
           <div className="w-16 h-16 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-4">
-            <Inbox size={26} className="text-[#CEB5FF]" />
+            {isResolvedMode ? (
+              <CheckCircle size={26} className="text-[#3DB870]" />
+            ) : (
+              <Inbox size={26} className="text-[#CEB5FF]" />
+            )}
           </div>
           <p className="text-[14px] font-semibold text-[#18182E]">
-            {tickets.length === 0 ? "Your inbox is empty" : "Select a ticket"}
+            {scoped.length === 0
+              ? isResolvedMode
+                ? "No resolved tickets"
+                : "Your inbox is empty"
+              : "Select a ticket"}
           </p>
           <p className="text-[13px] text-[#9898B8] mt-1 max-w-[220px] leading-relaxed">
-            {tickets.length === 0
-              ? "You're all caught up! New inquiries will appear automatically."
+            {scoped.length === 0
+              ? isResolvedMode
+                ? "Resolved conversations will show up here for reference."
+                : "You're all caught up! New inquiries will appear automatically."
               : "Choose a ticket from the list to view the full conversation."}
           </p>
         </div>
       )}
     </div>
   );
+}
+
+export function ResolvedView() {
+  return <InboxView mode="resolved" />;
 }
 
 export function EscalationsView() {

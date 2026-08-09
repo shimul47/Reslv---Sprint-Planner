@@ -5,7 +5,11 @@ import { AuthContext } from "./context/AuthContext";
 import AppShell from "./pages/AppShell";
 import LoginScreen from "./pages/LoginScreen";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
-import { InboxView, EscalationsView } from "./components/workspace/Views";
+import {
+  InboxView,
+  EscalationsView,
+  ResolvedView,
+} from "./components/workspace/Views";
 import { ReportsView } from "./components/workspace/Reports";
 import { SettingsView } from "./components/workspace/Settings";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
@@ -14,6 +18,7 @@ import BillingPage from "./pages/BillingPage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import SupportPortalPage from "./pages/SupportPortalPage";
 import TicketSystemPage from "./pages/TicketSystemPage";
+import { roleLandingPath } from "./utils/roleRouting.js";
 
 function RequireAuth({ allowedRoles, children }) {
   const { user, loading } = useContext(AuthContext);
@@ -34,12 +39,7 @@ function RequireAuth({ allowedRoles, children }) {
   if (allowedRoles && allowedRoles.length > 0) {
     const hasRole = user.roles?.some((role) => allowedRoles.includes(role));
     if (!hasRole) {
-      return (
-        <Navigate
-          to={user.roles?.includes("superadmin") ? "/admin" : "/dashboard"}
-          replace
-        />
-      );
+      return <Navigate to={roleLandingPath(user.roles)} replace />;
     }
   }
 
@@ -57,10 +57,7 @@ export default function App() {
         path="/login"
         element={
           user ? (
-            <Navigate
-              to={user.roles?.includes("superadmin") ? "/admin" : "/dashboard"}
-              replace
-            />
+            <Navigate to={roleLandingPath(user.roles)} replace />
           ) : (
             <LoginScreen />
           )
@@ -109,15 +106,7 @@ export default function App() {
       <Route
         path="/tickets"
         element={
-          <RequireAuth
-            allowedRoles={[
-              "superadmin",
-              "admin",
-              "agent",
-              "employee",
-              "sprint_planner",
-            ]}
-          >
+          <RequireAuth allowedRoles={["superadmin", "admin", "agent"]}>
             <TicketSystemPage onLogout={logout} />
           </RequireAuth>
         }
@@ -125,6 +114,7 @@ export default function App() {
         <Route index element={<Navigate to="inbox" replace />} />
         <Route path="inbox" element={<InboxView />} />
         <Route path="escalations" element={<EscalationsView />} />
+        <Route path="resolved" element={<ResolvedView />} />
         <Route
           path="reports"
           element={

@@ -4,6 +4,7 @@ import {
   createCheckoutSession,
   createPortalSession,
   getSubscription,
+  getPlans,
   handleWebhook,
 } from "../controllers/paymentController.js";
 
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post("/create-checkout-session", protect, createCheckoutSession);
 router.post("/create-portal-session", protect, createPortalSession);
 router.get("/subscription", protect, getSubscription);
+router.get("/plans", protect, getPlans);
 
 export default router;
 export { handleWebhook };
