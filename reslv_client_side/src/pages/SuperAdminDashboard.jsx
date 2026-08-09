@@ -12,6 +12,7 @@ import {
   Building,
   Copy,
 } from "lucide-react";
+import ScrambledText from "../components/ScrambledText";
 
 // =========================================================================
 // 1. INLINE BACKGROUND MATRIX CANVAS COMPONENT (UNTOUCHED)
@@ -431,21 +432,42 @@ export default function SuperAdminDashboard() {
         <header className="mb-8 p-5 bg-black/60 backdrop-blur-md border border-[#00FF41]/30 border-l-4 border-l-[#00FF41] rounded-r-xl shadow-[0_0_30px_rgba(0,255,65,0.05)] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-[10px] text-[#00FF41] font-black uppercase tracking-[0.3em] drop-shadow-[0_0_4px_rgba(0,255,65,0.4)]">
-              <ShieldAlert size={14} className="animate-pulse" />{" "}
-              NETWORK_ROOT_ACCESS: STATUS_AUTHORIZED
+              <ShieldAlert size={14} className="animate-pulse" />
+              <ScrambledText
+                radius={120}
+                duration={0.6}
+                speed={0.4}
+                scrambleChars="01_:"
+                className="inline"
+                style={{ margin: 0, fontSize: 'inherit', color: 'inherit', fontFamily: 'inherit' }}
+              >
+                NETWORK_ROOT_ACCESS: STATUS_AUTHORIZED
+              </ScrambledText>
             </div>
-            <div className="text-2xl md:text-3xl font-black text-white tracking-tighter">
-              SUPER_NODE:{" "}
-              <span className="text-green-500">SUPER_ADMIN_ROOT</span>
-            </div>
+            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter">
+              <ScrambledText
+                radius={150}
+                duration={0.9}
+                speed={0.5}
+                scrambleChars="ABCDEF0123_:"
+                style={{ margin: 0, fontSize: 'inherit', color: 'inherit', fontFamily: 'inherit' }}
+              >
+                SUPER_NODE: SUPER_ADMIN_ROOT
+              </ScrambledText>
+            </h1>
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-emerald-500/60">
               <span className="bg-[#00FF41]/10 text-[#00FF41] border border-[#00FF41]/40 px-2.5 py-0.5 rounded font-black">
                 SECTOR: GLOBAL_CORE
               </span>
-              <span>// PIPELINE_v4.2</span>
-              <span className="text-[#00FF41] font-extrabold drop-shadow-[0_0_3px_rgba(0,255,65,0.3)]">
-                // MONITOR: ONLINE
-              </span>
+              <ScrambledText
+                radius={100}
+                duration={0.5}
+                speed={0.5}
+                scrambleChars="./|_"
+                style={{ margin: 0, fontSize: 'inherit', color: 'inherit', fontFamily: 'inherit', display: 'inline' }}
+              >
+                // PIPELINE_v4.2 // MONITOR: ONLINE
+              </ScrambledText>
             </div>
           </div>
           <div className="hidden md:block text-right">
