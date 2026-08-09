@@ -10,7 +10,7 @@ const subscriptionSchema = new mongoose.Schema(
     },
     plan: {
       type: String,
-      enum: ["free", "premium"],
+      enum: ["free", "starter", "professional", "enterprise"],
       default: "free",
     },
     billingCycle: {
@@ -36,6 +36,10 @@ const subscriptionSchema = new mongoose.Schema(
     stripePriceId: { type: String },
     currentPeriodEnd: { type: Date },
     cancelAtPeriodEnd: { type: Boolean, default: false },
+    // Superadmin-set company-wide invite cap that overrides the plan's
+    // default limit (e.g. a comp'd allowance while bootstrapping a new
+    // company). null means "use the plan's limit".
+    inviteLimitOverride: { type: Number, default: null },
   },
   { timestamps: true },
 );

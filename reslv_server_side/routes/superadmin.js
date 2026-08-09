@@ -2,7 +2,6 @@ import express from "express";
 import {
   getDashboardInit,
   createCompanyNode,
-  createAdminNode,
   updateAdminNode,
   deleteAdminNode,
 } from "../controllers/superadminController.js";
@@ -14,7 +13,8 @@ router.use(requireAuth, requireRoles(["superadmin"]));
 
 router.get("/init", getDashboardInit);
 router.post("/companies", createCompanyNode);
-router.post("/admins", createAdminNode);
+// Admin provisioning now goes through POST /api/team/invite (invite+email
+// flow) instead of direct creation — see teamController.inviteTeamMember.
 router.put("/admins/:id", updateAdminNode);
 router.delete("/admins/:id", deleteAdminNode);
 

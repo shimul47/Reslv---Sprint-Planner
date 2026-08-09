@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -156,22 +157,30 @@ function EmptyChart() {
 }
 
 export function ReportsView() {
+  const navigate = useNavigate();
   const [range, setRange] = useState("30d");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [upgradeRequired, setUpgradeRequired] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
+    setUpgradeRequired(null);
     api
       .get(`/tickets/reports/summary?range=${range}`)
       .then((res) => {
         if (!cancelled) setData(res.data);
       })
-      .catch(() => {
-        if (!cancelled) setError("Unable to load reports.");
+      .catch((err) => {
+        if (cancelled) return;
+        if (err.response?.status === 403 && err.response?.data?.upgradeRequired) {
+          setUpgradeRequired(err.response.data.upgradeRequired);
+        } else {
+          setError("Unable to load reports.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -227,13 +236,34 @@ export function ReportsView() {
         </div>
       )}
 
-      {!loading && error && (
+      {!loading && upgradeRequired && (
+        <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-[#EEF0FF] flex items-center justify-center">
+            <BarChart2 size={20} className="text-[#5B5BD6]" />
+          </div>
+          <p className="text-[14px] font-semibold text-[#18182E] capitalize">
+            Reports require the {upgradeRequired} plan
+          </p>
+          <p className="text-[12px] text-[#9898B8] max-w-[280px]">
+            Upgrade your plan to unlock ticket volume, resolution, and workload
+            reporting for your team.
+          </p>
+          <button
+            onClick={() => navigate("/billing")}
+            className="mt-1 px-4 py-2 text-[12px] font-semibold rounded-xl bg-[#5B5BD6] text-white hover:opacity-90 transition-opacity"
+          >
+            Upgrade plan
+          </button>
+        </div>
+      )}
+
+      {!loading && !upgradeRequired && error && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-[13px] font-semibold text-[#CC1836]">{error}</p>
         </div>
       )}
 
-      {!loading && !error && data && (
+      {!loading && !upgradeRequired && !error && data && (
         <>
           {/* Stat Cards - Fully Responsive Grid Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">

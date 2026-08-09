@@ -1,5 +1,11 @@
+// Must run before any other import — ESM imports execute eagerly in
+// declaration order, and several modules below (e.g. utils/mailer.js,
+// imported transitively via routes/team.js) read process.env at their own
+// module top-level. If dotenv.config() ran after those imports, they'd
+// permanently capture undefined credentials.
+import "dotenv/config";
+
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import mongoose from "mongoose";
 import http from "http";
@@ -16,7 +22,6 @@ import calendarRoutes from "./routes/calendarRoutes.js";
 
 import Company from "./models/Company.js";
 import User from "./models/User.js";
-dotenv.config();
 
 const app = express();
 const server = http.createServer(app);

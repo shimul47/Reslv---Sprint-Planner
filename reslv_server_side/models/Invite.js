@@ -12,10 +12,13 @@ const inviteSchema = new mongoose.Schema({
     ref: "Company",
     required: true,
   },
-  role: {
-    type: String,
-    enum: ["admin", "developer", "agent", "employee"],
-    default: "agent",
+  roles: {
+    type: [{ type: String, enum: ["admin", "agent", "employee", "sprint_planner"] }],
+    default: ["agent"],
+  },
+  inviteLimit: {
+    type: Number,
+    default: null, // only meaningful when a superadmin invites an admin
   },
   token: {
     type: String,

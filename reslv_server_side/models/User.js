@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     roles: { type: [String], default: ["admin"] },
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
     companyName: { type: String },
+    phone: { type: String, default: "" },
     inviteLimit: { type: Number, default: 5 },
     googleCalendar: {
   connected: { type: Boolean, default: false },

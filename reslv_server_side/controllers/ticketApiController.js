@@ -1,8 +1,11 @@
 import Ticket from "../models/Ticket.js";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
+import { companyHasFeature } from "../utils/planAccess.js";
 
-const AGENT_ROLES = ["superadmin", "admin", "agent", "employee", "sprint_planner"];
+// The ticket system is agent-only among non-admin roles — employee and
+// sprint_planner have their own dedicated areas instead.
+const AGENT_ROLES = ["superadmin", "admin", "agent"];
 
 function initialsFromName(name) {
   return (
@@ -79,10 +82,17 @@ function getTicketScope(req) {
     return { companyId: req.user.companyId };
   }
 
-  // agent/employee/sprint_planner: shared unassigned pool + tickets assigned to me
+  // agent (the only non-admin role with ticket access): the shared
+  // unassigned pool for anything still active, plus every ticket assigned
+  // to me regardless of status — so a resolved-but-unclaimed ticket doesn't
+  // show up as "mine" once it's done (admin/superadmin see all of these
+  // via the unrestricted scopes above).
   return {
     companyId: req.user.companyId,
-    $or: [{ assignedTo: null }, { assignedTo: req.user.id }],
+    $or: [
+      { assignedTo: req.user.id },
+      { assignedTo: null, status: { $ne: "resolved" } },
+    ],
   };
 }
 
@@ -105,6 +115,10 @@ function formatTicket(
     ? ticket.messages || []
     : (ticket.messages || []).filter((message) => message.from !== "internal");
   const sla = computeSla(ticket, slaTargets || DEFAULT_TICKET_SETTINGS.slaTargets);
+  // Unread from the agent's perspective: customer messages no agent has opened yet.
+  const unreadCount = (ticket.messages || []).filter(
+    (message) => message.from === "customer" && !message.read,
+  ).length;
 
   return {
     id: ticket.ticketNumber,
@@ -134,9 +148,10 @@ function formatTicket(
     lastMsg: ticket.lastMsg || ticket.description,
     resolvedAt: ticket.resolvedAt || null,
     tags: ticket.tags || [],
+    unreadCount,
     escalationStep: ticket.escalationStep || 0,
-    ts: ticket.createdAt
-      ? new Date(ticket.createdAt).toLocaleTimeString([], {
+    ts: ticket.updatedAt || ticket.createdAt
+      ? new Date(ticket.updatedAt || ticket.createdAt).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         })
@@ -235,7 +250,8 @@ export const getTickets = async (req, res) => {
   try {
     const filter = getTicketScope(req);
     const includeInternal = !req.user?.roles?.includes("customer");
-    const tickets = await Ticket.find(filter).sort({ createdAt: -1 });
+    // Most recently active ticket (new message, status/assignment change) first.
+    const tickets = await Ticket.find(filter).sort({ updatedAt: -1 });
     // Fetch once and reuse for every ticket instead of a lookup per ticket.
     const { slaTargets } = await getCompanySettings(req.user.companyId);
     const formatted = [];
@@ -461,6 +477,38 @@ export const addTicketMessage = async (req, res) => {
   }
 };
 
+// Called when an agent opens a ticket — clears its unread badge/bold state.
+export const markTicketRead = async (req, res) => {
+  try {
+    const ticket = await Ticket.findOne({
+      ticketNumber: req.params.ticketNumber,
+      ...getTicketScope(req),
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found." });
+    }
+
+    let changed = false;
+    for (const message of ticket.messages) {
+      if (message.from === "customer" && !message.read) {
+        message.read = true;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await ticket.save();
+      emitTicketUpdated(req, ticket);
+    }
+
+    res.json({ ticket: await loadCompanyTicketView(ticket) });
+  } catch (error) {
+    console.error("Mark ticket read error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export const addTicketNote = async (req, res) => {
   try {
     const { text } = req.body;
@@ -635,6 +683,14 @@ export const updateTicketSettings = async (req, res) => {
       return res.status(400).json({ message: "No company associated with this account." });
     }
 
+    const isSuperAdmin = req.user.roles?.includes("superadmin");
+    if (!isSuperAdmin && !(await companyHasFeature(req.user.companyId, "customSlaSettings"))) {
+      return res.status(403).json({
+        message: "Custom SLA targets and support-hours notes require the Enterprise plan.",
+        upgradeRequired: "enterprise",
+      });
+    }
+
     const { slaTargets, autoAssignOnReply, supportHoursNote } = req.body;
     const update = {};
 
@@ -680,6 +736,14 @@ const RANGE_DAYS = { "7d": 7, "30d": 30, "90d": 90 };
 
 export const getTicketReports = async (req, res) => {
   try {
+    const isSuperAdmin = req.user.roles?.includes("superadmin");
+    if (!isSuperAdmin && !(await companyHasFeature(req.user.companyId, "reports"))) {
+      return res.status(403).json({
+        message: "Reports require the Professional plan or higher.",
+        upgradeRequired: "professional",
+      });
+    }
+
     const days = RANGE_DAYS[req.query.range];
     const match = { ...getTicketScope(req) };
     if (days) {

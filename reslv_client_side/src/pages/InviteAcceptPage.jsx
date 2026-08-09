@@ -1,14 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
+import { AuthContext } from "../context/AuthContext.jsx";
+import { roleLandingPath } from "../utils/roleRouting.js";
 
 export default function InviteAcceptPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { setSession } = useContext(AuthContext);
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
 
   const [invite, setInvite] = useState(null);
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -39,7 +43,7 @@ export default function InviteAcceptPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !password.trim() || submitting) return;
+    if (!name.trim() || !phone.trim() || !password.trim() || submitting) return;
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -53,13 +57,12 @@ export default function InviteAcceptPage() {
       const response = await api.post("/invites/accept", {
         token,
         name: name.trim(),
+        phone: phone.trim(),
         password,
       });
 
-      localStorage.setItem("token", response.data.token);
-      window.location.href = response.data.user.roles?.includes("superadmin")
-        ? "/admin"
-        : "/dashboard";
+      setSession(response.data.token, response.data.user);
+      navigate(roleLandingPath(response.data.user.roles), { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to accept invite.");
     } finally {
@@ -106,6 +109,19 @@ export default function InviteAcceptPage() {
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-emerald-300/60"
               placeholder="Your full name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-white/55 mb-2">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-emerald-300/60"
+              placeholder="Your phone number"
             />
           </div>
 

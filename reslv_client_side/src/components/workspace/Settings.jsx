@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Loader2, Settings as SettingsIcon } from "lucide-react";
 import api from "../../api/axios.js";
+import { AuthContext } from "../../context/AuthContext.jsx";
 
 const SEVERITIES = [
   { id: "critical", label: "Critical" },
@@ -24,14 +26,15 @@ const labelCls =
 const cardCls =
   "bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] shadow-sm p-6";
 
-function Toggle({ checked, onChange }) {
+function Toggle({ checked, onChange, disabled }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative ${
+      className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative disabled:opacity-60 disabled:cursor-not-allowed ${
         checked ? "bg-[#80A8FF]" : "bg-[rgba(128,128,200,0.25)]"
       }`}
     >
@@ -45,6 +48,10 @@ function Toggle({ checked, onChange }) {
 }
 
 export function SettingsView() {
+  const navigate = useNavigate();
+  const { user, plan } = useContext(AuthContext);
+  const isSuperAdmin = user?.roles?.includes("superadmin");
+  const canEditSettings = isSuperAdmin || Boolean(plan?.features?.customSlaSettings);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -120,6 +127,17 @@ export function SettingsView() {
           </p>
         </div>
 
+        {!canEditSettings && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-[#EEF0FF] text-[#5B5BD6] text-[12px] font-medium flex items-center justify-between gap-3 flex-wrap">
+            <span>Editing SLA targets and support-hours settings requires the Enterprise plan.</span>
+            <button
+              onClick={() => navigate("/billing")}
+              className="px-3 py-1.5 rounded-lg bg-[#5B5BD6] text-white text-[11px] font-semibold hover:opacity-90 transition-opacity flex-shrink-0"
+            >
+              Upgrade plan
+            </button>
+          </div>
+        )}
         {error && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-[#FFEEF1] text-[#CC1836] text-[12px] font-medium text-center">
             {error}
@@ -149,7 +167,8 @@ export function SettingsView() {
                     min={1}
                     value={settings.slaTargets?.[s.id] ?? ""}
                     onChange={(e) => setSlaTarget(s.id, e.target.value)}
-                    className={inputCls}
+                    disabled={!canEditSettings}
+                    className={`${inputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
                   />
                   <p className="text-[10px] text-[#C0C0D8] mt-1">
                     {minutesHint(settings.slaTargets?.[s.id])}
@@ -174,6 +193,7 @@ export function SettingsView() {
               <Toggle
                 checked={Boolean(settings.autoAssignOnReply)}
                 onChange={(v) => setField("autoAssignOnReply", v)}
+                disabled={!canEditSettings}
               />
             </div>
           </div>
@@ -192,14 +212,15 @@ export function SettingsView() {
               placeholder="e.g. Mon–Fri 9am–6pm EST"
               value={settings.supportHoursNote || ""}
               onChange={(e) => setField("supportHoursNote", e.target.value)}
-              className={inputCls}
+              disabled={!canEditSettings}
+              className={`${inputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
             />
           </div>
 
           <div className="flex justify-center pt-2">
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !canEditSettings}
               className="flex items-center gap-2 px-6 py-2.5 bg-[#80A8FF] text-white text-[13px] font-semibold rounded-xl hover:bg-[#6B98EE] transition-colors shadow-sm shadow-[rgba(128,168,255,0.25)] disabled:opacity-60"
             >
               {saving && <Loader2 size={14} className="animate-spin" />}

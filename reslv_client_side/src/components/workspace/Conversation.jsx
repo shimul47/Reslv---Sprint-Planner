@@ -55,28 +55,6 @@ export function Bubble({ msg, cx }) {
   );
 }
 
-export function TypingIndicator({ name }) {
-  return (
-    <div className="flex gap-3 mb-5">
-      <div className="w-8 h-8 rounded-full bg-[#D3D3FF] flex items-center justify-center text-[#5050A0] text-[11px] font-bold flex-shrink-0">
-        {name[0]}
-      </div>
-      <div className="bg-white border border-[rgba(128,128,200,0.14)] shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="w-1.5 h-1.5 rounded-full bg-[#CEB5FF] animate-bounce"
-            style={{
-              animationDelay: `${i * 0.15}s`,
-              animationDuration: "0.9s",
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function EscalationStepper({ step }) {
   const barPct = step === 0 ? 0 : (step / (ESC_STEPS.length - 1)) * 88;
   return (

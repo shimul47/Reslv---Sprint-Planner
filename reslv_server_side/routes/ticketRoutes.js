@@ -9,6 +9,7 @@ import {
   resolveTicket,
   assignTicket,
   patchTicket,
+  markTicketRead,
   listAssignableAgents,
   getTicketSettings,
   updateTicketSettings,
@@ -32,6 +33,7 @@ router.get("/", getTickets);
 router.get("/:ticketNumber", getTicket);
 router.post("/", requireRoles(AGENT_ROLES), createTicket);
 router.post("/:ticketNumber/messages", addTicketMessage);
+router.patch("/:ticketNumber/read", markTicketRead);
 router.post("/:ticketNumber/notes", requireRoles(AGENT_ROLES), addTicketNote);
 router.patch("/:ticketNumber/escalate", requireRoles(AGENT_ROLES), escalateTicket);
 router.patch("/:ticketNumber/resolve", requireRoles(AGENT_ROLES), resolveTicket);
