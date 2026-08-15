@@ -84,6 +84,8 @@ export const acceptInvite = async (req, res) => {
         roles: user.roles,
         companyId: user.companyId,
         companyName: user.companyName,
+        inviteLimit: user.inviteLimit,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {

@@ -13,11 +13,17 @@ import {
 import { ReportsView } from "./components/workspace/Reports";
 import { SettingsView } from "./components/workspace/Settings";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
+import ProductBacklogView from "./pages/sprintPlanner/ProductBacklogView";
+import SprintBoardView from "./pages/sprintPlanner/SprintBoardView";
+import BurndownChartView from "./pages/sprintPlanner/BurndownChartView";
+import ReleasePlanningView from "./pages/sprintPlanner/ReleasePlanningView";
+import ScrumStatsView from "./pages/sprintPlanner/ScrumStatsView";
 import TeamManagement from "./pages/TeamManagement";
 import BillingPage from "./pages/BillingPage";
+import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import SupportPortalPage from "./pages/SupportPortalPage";
-import TicketSystemPage from "./pages/TicketSystemPage";
+import TicketsPage from "./pages/TicketsPage";
 import { roleLandingPath } from "./utils/roleRouting.js";
 
 function RequireAuth({ allowedRoles, children }) {
@@ -97,40 +103,41 @@ export default function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={null} />
-        <Route path="sprint-planner" element={<SprintPlannerPage />} />
+        <Route path="tickets" element={<TicketsPage />}>
+          <Route index element={<Navigate to="inbox" replace />} />
+          <Route path="inbox" element={<InboxView />} />
+          <Route path="escalations" element={<EscalationsView />} />
+          <Route path="resolved" element={<ResolvedView />} />
+          <Route
+            path="reports"
+            element={
+              <RequireAuth allowedRoles={["superadmin", "admin"]}>
+                <ReportsView />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <RequireAuth allowedRoles={["superadmin", "admin"]}>
+                <SettingsView />
+              </RequireAuth>
+            }
+          />
+        </Route>
+        <Route path="sprint-planner" element={<SprintPlannerPage />}>
+          <Route index element={<Navigate to="backlog" replace />} />
+          <Route path="backlog" element={<ProductBacklogView />} />
+          <Route path="board" element={<SprintBoardView />} />
+          <Route path="burndown" element={<BurndownChartView />} />
+          <Route path="release" element={<ReleasePlanningView />} />
+          <Route path="stats" element={<ScrumStatsView />} />
+        </Route>
         <Route path="admin/team" element={<TeamManagement />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="billing/success" element={<BillingPage />} />
         <Route path="billing/cancelled" element={<BillingPage />} />
-      </Route>
-      <Route
-        path="/tickets"
-        element={
-          <RequireAuth allowedRoles={["superadmin", "admin", "agent"]}>
-            <TicketSystemPage onLogout={logout} />
-          </RequireAuth>
-        }
-      >
-        <Route index element={<Navigate to="inbox" replace />} />
-        <Route path="inbox" element={<InboxView />} />
-        <Route path="escalations" element={<EscalationsView />} />
-        <Route path="resolved" element={<ResolvedView />} />
-        <Route
-          path="reports"
-          element={
-            <RequireAuth allowedRoles={["superadmin", "admin"]}>
-              <ReportsView />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <RequireAuth allowedRoles={["superadmin", "admin"]}>
-              <SettingsView />
-            </RequireAuth>
-          }
-        />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

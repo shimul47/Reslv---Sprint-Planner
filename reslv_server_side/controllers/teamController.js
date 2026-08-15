@@ -279,3 +279,63 @@ export const revokeInvite = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// ── Sprint Planner Administration permissions ───────────────────────────────
+// A superadmin has no companyId of their own, so they must target a company
+// explicitly via ?companyId= — mirrors how they scope /superadmin/init.
+function resolveSettingsCompanyId(req) {
+  const isSuperAdmin = req.user.roles?.includes("superadmin");
+  return isSuperAdmin ? req.query.companyId || null : req.user.companyId;
+}
+
+export const getSprintPlannerSettings = async (req, res) => {
+  try {
+    const companyId = resolveSettingsCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
+    }
+
+    const company = await Company.findById(companyId).select("sprintPlannerSettings").lean();
+    if (!company) {
+      return res.status(404).json({ message: "Company not found." });
+    }
+
+    res.json({ settings: company.sprintPlannerSettings || {} });
+  } catch (error) {
+    console.error("Get sprint planner settings error:", error);
+    res.status(500).json({ message: "Failed to load settings." });
+  }
+};
+
+export const updateSprintPlannerSettings = async (req, res) => {
+  try {
+    const companyId = resolveSettingsCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
+    }
+
+    const { employeesCanCreateTasks, employeesCanEditBacklog, employeesCanPublishSprints } = req.body;
+    const update = {};
+    if (employeesCanCreateTasks !== undefined) {
+      update["sprintPlannerSettings.employeesCanCreateTasks"] = Boolean(employeesCanCreateTasks);
+    }
+    if (employeesCanEditBacklog !== undefined) {
+      update["sprintPlannerSettings.employeesCanEditBacklog"] = Boolean(employeesCanEditBacklog);
+    }
+    if (employeesCanPublishSprints !== undefined) {
+      update["sprintPlannerSettings.employeesCanPublishSprints"] = Boolean(employeesCanPublishSprints);
+    }
+
+    const company = await Company.findByIdAndUpdate(companyId, { $set: update }, { new: true })
+      .select("sprintPlannerSettings")
+      .lean();
+    if (!company) {
+      return res.status(404).json({ message: "Company not found." });
+    }
+
+    res.json({ settings: company.sprintPlannerSettings || {} });
+  } catch (error) {
+    console.error("Update sprint planner settings error:", error);
+    res.status(500).json({ message: "Failed to update settings." });
+  }
+};

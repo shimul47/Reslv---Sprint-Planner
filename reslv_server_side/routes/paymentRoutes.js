@@ -5,6 +5,7 @@ import {
   createPortalSession,
   getSubscription,
   getPlans,
+  syncCheckoutSession,
   handleWebhook,
 } from "../controllers/paymentController.js";
 
@@ -19,6 +20,7 @@ router.post("/create-checkout-session", protect, createCheckoutSession);
 router.post("/create-portal-session", protect, createPortalSession);
 router.get("/subscription", protect, getSubscription);
 router.get("/plans", protect, getPlans);
+router.post("/sync-checkout-session", protect, syncCheckoutSession);
 
 export default router;
 export { handleWebhook };
