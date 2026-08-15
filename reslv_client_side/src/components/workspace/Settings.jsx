@@ -26,7 +26,7 @@ const labelCls =
 const cardCls =
   "bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] shadow-sm p-6";
 
-function Toggle({ checked, onChange, disabled }) {
+function Toggle({ checked, onChange, disabled, className = "" }) {
   return (
     <button
       type="button"
@@ -34,13 +34,15 @@ function Toggle({ checked, onChange, disabled }) {
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`w-10 h-6 rounded-full flex-shrink-0 transition-colors relative disabled:opacity-60 disabled:cursor-not-allowed ${
+      className={`relative flex h-6 w-10 flex-shrink-0 items-center rounded-full p-0.5 transition-colors duration-200 ${
         checked ? "bg-[#80A8FF]" : "bg-[rgba(128,128,200,0.25)]"
-      }`}
+      } ${
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+      } ${className}`}
     >
       <span
-        className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-[18px]" : "translate-x-0.5"
+        className={`block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out ${
+          checked ? "translate-x-4" : "translate-x-0"
         }`}
       />
     </button>
@@ -51,7 +53,8 @@ export function SettingsView() {
   const navigate = useNavigate();
   const { user, plan } = useContext(AuthContext);
   const isSuperAdmin = user?.roles?.includes("superadmin");
-  const canEditSettings = isSuperAdmin || Boolean(plan?.features?.customSlaSettings);
+  const canEditSettings =
+    isSuperAdmin || Boolean(plan?.features?.customSlaSettings);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,9 +122,7 @@ export function SettingsView() {
     <div className="flex-1 overflow-y-auto bg-[#F7F7FF]">
       <div className="max-w-2xl mx-auto px-8 py-10">
         <div className="text-center mb-8">
-          <h1 className="text-[18px] font-semibold text-[#18182E]">
-            Settings
-          </h1>
+          <h1 className="text-[18px] font-semibold text-[#18182E]">Settings</h1>
           <p className="text-[13px] text-[#9898B8] mt-1">
             Configure SLA targets, assignment behavior, and what customers see.
           </p>
@@ -129,7 +130,10 @@ export function SettingsView() {
 
         {!canEditSettings && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-[#EEF0FF] text-[#5B5BD6] text-[12px] font-medium flex items-center justify-between gap-3 flex-wrap">
-            <span>Editing SLA targets and support-hours settings requires the Enterprise plan.</span>
+            <span>
+              Editing SLA targets and support-hours settings requires the
+              Enterprise plan.
+            </span>
             <button
               onClick={() => navigate("/billing")}
               className="px-3 py-1.5 rounded-lg bg-[#5B5BD6] text-white text-[11px] font-semibold hover:opacity-90 transition-opacity flex-shrink-0"
@@ -149,7 +153,7 @@ export function SettingsView() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-4 text-left">
           <div className={cardCls}>
             <h3 className="text-[13px] font-semibold text-[#18182E] mb-1">
               SLA Targets
@@ -177,23 +181,25 @@ export function SettingsView() {
               ))}
             </div>
           </div>
-
           <div className={cardCls}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
                 <h3 className="text-[13px] font-semibold text-[#18182E]">
                   Auto-assign on first reply
                 </h3>
-                <p className="text-[12px] text-[#9898B8] mt-1 max-w-md">
+
+                <p className="mt-1 max-w-md text-[12px] text-[#9898B8]">
                   When an agent sends the first reply to an unassigned ticket,
-                  it's automatically claimed and removed from the shared pool
+                  it is automatically claimed and removed from the shared pool
                   for other agents.
                 </p>
               </div>
+
               <Toggle
-                checked={Boolean(settings.autoAssignOnReply)}
-                onChange={(v) => setField("autoAssignOnReply", v)}
+                checked={settings?.autoAssignOnReply ?? false}
+                onChange={(value) => setField("autoAssignOnReply", value)}
                 disabled={!canEditSettings}
+                className="mt-0.5 shrink-0"
               />
             </div>
           </div>

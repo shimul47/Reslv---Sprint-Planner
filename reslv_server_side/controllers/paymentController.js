@@ -126,6 +126,43 @@ export const getPlans = async (_req, res) => {
   res.json({ tiers });
 };
 
+// POST /api/payments/sync-checkout-session
+// body: { sessionId }
+// The webhook is the source of truth, but it can be delayed, unconfigured
+// (e.g. `stripe listen` not running in local dev), or otherwise miss —
+// leaving the success page stuck showing the old plan. This lets the
+// success page pull the same update directly from the Checkout session it
+// already has the ID for, as a synchronous fallback.
+export const syncCheckoutSession = async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ message: "sessionId is required." });
+    }
+
+    const { user } = await getOrCreateSubscriptionForReq(req);
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["subscription"],
+    });
+
+    // Only let a user sync a session that belongs to their own company.
+    if (String(session.metadata?.companyId) !== String(user.companyId)) {
+      return res.status(403).json({ message: "This checkout session does not belong to your company." });
+    }
+
+    if (session.subscription && typeof session.subscription === "object") {
+      await applySubscriptionUpdate(session.subscription);
+    }
+
+    const plan = await getCompanyPlan(user.companyId);
+    res.json({ plan });
+  } catch (error) {
+    console.error("syncCheckoutSession error:", error.message);
+    res.status(error.status || 500).json({ message: error.message || "Server error" });
+  }
+};
+
 // POST /api/payments/webhook  (mounted with express.raw(), NOT express.json())
 export const handleWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
@@ -190,7 +227,8 @@ export const handleWebhook = async (req, res) => {
 };
 
 async function applySubscriptionUpdate(stripeSubscription) {
-  const priceId = stripeSubscription.items.data[0]?.price?.id;
+  const item = stripeSubscription.items.data[0];
+  const priceId = item?.price?.id;
   let planInfo = PLAN_BY_PRICE_ID[priceId];
   if (!planInfo) {
     console.warn(`applySubscriptionUpdate: unrecognized price ID "${priceId}", defaulting to starter`);
@@ -199,6 +237,11 @@ async function applySubscriptionUpdate(stripeSubscription) {
 
   const companyId = stripeSubscription.metadata?.companyId;
 
+  // Newer Stripe API versions moved current_period_end from the subscription
+  // object down to the subscription item; fall back to the old top-level
+  // field for accounts still on an older API version.
+  const currentPeriodEndUnix = item?.current_period_end ?? stripeSubscription.current_period_end;
+
   const update = {
     plan: planInfo.plan,
     billingCycle: planInfo.billingCycle,
@@ -206,7 +249,7 @@ async function applySubscriptionUpdate(stripeSubscription) {
     stripeSubscriptionId: stripeSubscription.id,
     stripeCustomerId: stripeSubscription.customer,
     stripePriceId: priceId,
-    currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+    currentPeriodEnd: currentPeriodEndUnix ? new Date(currentPeriodEndUnix * 1000) : undefined,
     cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
   };
 

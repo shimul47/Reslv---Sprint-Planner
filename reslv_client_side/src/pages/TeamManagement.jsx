@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext.jsx";
 import { ROLE_OPTIONS, roleLabel } from "../data/roles.js";
+import SprintPlannerPermissionsPanel from "../components/sprintPlanner/SprintPlannerPermissionsPanel.jsx";
 
 const SUPERADMIN_COMPANY_SCOPE_KEY = "reslv.superadmin.companyScope";
 
@@ -199,7 +200,7 @@ export default function TeamManagement() {
       : Math.max(inviteLimit - inviteUsage, 0);
 
   return (
-    <div className="max-w-6xl w-full mx-auto p-8 overflow-y-auto h-full text-[var(--color-foreground)]">
+    <div className="w-full p-8 overflow-y-auto h-full text-[var(--color-foreground)]">
       {/* Header Section */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -504,6 +505,8 @@ export default function TeamManagement() {
           </table>
         </div>
       </div>
+
+      <SprintPlannerPermissionsPanel companyId={isSuperAdmin ? inviteCompanyId || undefined : null} />
     </div>
   );
 }

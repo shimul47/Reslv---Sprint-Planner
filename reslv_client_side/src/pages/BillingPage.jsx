@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import api from "../api/axios";
+import { AuthContext } from "../context/AuthContext.jsx";
 
 const FEATURE_LABELS = {
   reports: "Reports & analytics",
@@ -14,6 +15,7 @@ function formatInviteLimit(limit) {
 
 export default function BillingPage() {
   const location = useLocation();
+  const { refreshPlan } = useContext(AuthContext);
   const [subscription, setSubscription] = useState(null);
   const [currentPlan, setCurrentPlan] = useState(null);
   const [tiers, setTiers] = useState([]);
@@ -24,15 +26,28 @@ export default function BillingPage() {
 
   const justSucceeded = location.pathname.endsWith("/success");
   const justCancelled = location.pathname.endsWith("/cancelled");
+  const sessionId = new URLSearchParams(location.search).get("session_id");
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.get("/payments/subscription"), api.get("/payments/plans")])
+
+    // The webhook is the source of truth, but it can be delayed or (in local
+    // dev, if `stripe listen` isn't running) never arrive at all — sync
+    // directly from the Checkout session so the page doesn't get stuck
+    // showing the pre-upgrade plan.
+    const sync =
+      justSucceeded && sessionId
+        ? api.post("/payments/sync-checkout-session", { sessionId }).catch(() => null)
+        : Promise.resolve(null);
+
+    sync
+      .then(() => Promise.all([api.get("/payments/subscription"), api.get("/payments/plans")]))
       .then(([subRes, plansRes]) => {
         if (cancelled) return;
         setSubscription(subRes.data.subscription);
         setCurrentPlan(subRes.data.plan);
         setTiers(plansRes.data.tiers);
+        refreshPlan();
       })
       .catch((err) => {
         if (!cancelled)
@@ -44,6 +59,7 @@ export default function BillingPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUpgrade = async (tierId) => {

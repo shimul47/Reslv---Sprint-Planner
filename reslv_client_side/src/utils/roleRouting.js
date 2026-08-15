@@ -5,11 +5,11 @@ export function roleLandingPath(roles = []) {
   if (roles.includes("superadmin")) return "/admin";
   if (roles.includes("admin")) return "/dashboard";
 
-  // Ticket System is agent-only; Sprint Planner is sprint_planner-only.
-  // Employee has no dedicated page yet (their assigned-task view is a
-  // future feature) — they land on the hub like a multi-role user.
+  // Ticket System is agent-only; Sprint Planner is open to sprint_planner
+  // and employee (an employee's Sprint Planner view is scoped server-side
+  // to their own assigned tasks — see spSprintController.getSprintBoard).
   const hasTicketAccess = roles.includes("agent");
-  const hasSprintAccess = roles.includes("sprint_planner");
+  const hasSprintAccess = roles.includes("sprint_planner") || roles.includes("employee");
 
   if (hasTicketAccess && !hasSprintAccess) return "/tickets/inbox";
   if (hasSprintAccess && !hasTicketAccess) return "/sprint-planner";
