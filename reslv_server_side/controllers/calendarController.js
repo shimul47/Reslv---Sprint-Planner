@@ -15,6 +15,7 @@ export const getAuthUrl = (req, res) => {
   res.json({ url });
 };
 
+
 export const oauthCallback = async (req, res) => {
   const { code, state, error } = req.query;
 

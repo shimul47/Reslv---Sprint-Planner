@@ -2,6 +2,7 @@ import Ticket from "../models/Ticket.js";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
 import { companyHasFeature } from "../utils/planAccess.js";
+import { sendTicketCreatedEmail, sendTicketResolvedEmail } from "../utils/mailer.js";
 
 // The ticket system is agent-only among non-admin roles — employee and
 // sprint_planner have their own dedicated areas instead.
@@ -377,6 +378,15 @@ export const createTicket = async (req, res) => {
       io.to(`company:${company._id.toString()}`).emit("ticket:created", formatted);
     }
 
+    // Fire-and-forget: don't let a slow/failed email delay or break the
+    // ticket creation response (sendTicketCreatedEmail already swallows
+    // its own errors internally).
+    sendTicketCreatedEmail(displayEmail, {
+      ticketNumber,
+      subject,
+      companyName: company.name,
+    });
+
     res.status(201).json({ ticket: await loadCompanyTicketView(ticket) });
   } catch (error) {
     console.error("Ticket creation error:", error);
@@ -579,6 +589,11 @@ export const resolveTicket = async (req, res) => {
 
     await resolveTicketThread(ticket, req.user?.id);
     emitTicketUpdated(req, ticket);
+
+    sendTicketResolvedEmail(ticket.customerSnapshot?.email, {
+      ticketNumber: ticket.ticketNumber,
+      subject: ticket.subject,
+    });
 
     res.json({ ticket: await loadCompanyTicketView(ticket) });
   } catch (error) {
