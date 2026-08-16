@@ -3,6 +3,20 @@ import { TIERS, PRICE_IDS, PLAN_BY_PRICE_ID, PLAN_DISPLAY, TIER_CONFIG } from ".
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import { getCompanyPlan } from "../utils/planAccess.js";
+import { sendSubscriptionUpdatedEmail, sendSubscriptionCanceledEmail } from "../utils/mailer.js";
+
+// Billing emails go to whichever admin/superadmin was set up first for the
+// company — there's no single "billing contact" field on Company yet.
+async function getCompanyAdminEmail(companyId) {
+  if (!companyId) return null;
+  const admin = await User.findOne({
+    companyId,
+    roles: { $in: ["admin", "superadmin"] },
+  })
+    .select("email")
+    .lean();
+  return admin?.email || null;
+}
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
@@ -200,7 +214,7 @@ export const handleWebhook = async (req, res) => {
 
       case "customer.subscription.deleted": {
         const stripeSubscription = event.data.object;
-        await Subscription.findOneAndUpdate(
+        const existing = await Subscription.findOneAndUpdate(
           { stripeSubscriptionId: stripeSubscription.id },
           {
             plan: "free",
@@ -209,6 +223,8 @@ export const handleWebhook = async (req, res) => {
             cancelAtPeriodEnd: false,
           },
         );
+        const adminEmail = await getCompanyAdminEmail(existing?.companyId);
+        sendSubscriptionCanceledEmail(adminEmail);
         break;
       }
 
@@ -253,16 +269,25 @@ async function applySubscriptionUpdate(stripeSubscription) {
     cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
   };
 
+  let saved;
   if (companyId) {
-    await Subscription.findOneAndUpdate({ companyId }, update, {
+    saved = await Subscription.findOneAndUpdate({ companyId }, update, {
       upsert: true,
       new: true,
     });
   } else {
     // Fallback: match by customer id if metadata somehow wasn't set.
-    await Subscription.findOneAndUpdate(
+    saved = await Subscription.findOneAndUpdate(
       { stripeCustomerId: stripeSubscription.customer },
       update,
+      { new: true },
     );
   }
+
+  const adminEmail = await getCompanyAdminEmail(saved?.companyId || companyId);
+  sendSubscriptionUpdatedEmail(adminEmail, {
+    plan: planInfo.plan,
+    billingCycle: planInfo.billingCycle,
+    status: stripeSubscription.status,
+  });
 }
