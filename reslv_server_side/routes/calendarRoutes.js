@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middlewares/auth.js";
+import { requireAuth } from "../middleware/authMiddleware.js";
 import {
   getAuthUrl,
   oauthCallback,
@@ -10,12 +10,12 @@ import {
 
 const router = express.Router();
 
-router.get("/auth-url", protect, getAuthUrl);
-router.get("/status", protect, getStatus);
-router.post("/disconnect", protect, disconnect);
-router.get("/availability", protect, getAvailability);
+router.get("/auth-url", requireAuth, getAuthUrl);
+router.get("/status", requireAuth, getStatus);
+router.post("/disconnect", requireAuth, disconnect);
+router.get("/availability", requireAuth, getAvailability);
 
-// No protect here — Google redirects the browser directly, no auth header
+// No requireAuth here — Google redirects the browser directly, no auth header
 router.get("/oauth/callback", oauthCallback);
 
 export default router;

@@ -1,22 +1,64 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ---------------------------------------------------------------------
+// Resend — disabled for now. Resend's sandbox sender (onboarding@resend.dev)
+// can only deliver to the Resend account's own verified email, so nothing
+// sent to a real invitee/customer address goes through until a sending
+// domain is verified in the Resend dashboard (planned once this is hosted).
+// Left in place, commented out, to swap back in at that point.
+// ---------------------------------------------------------------------
+// import { Resend } from "resend";
+// const resend = new Resend(process.env.RESEND_API_KEY);
+// const RESEND_FROM = process.env.RESEND_FROM || "Reslv <onboarding@resend.dev>";
 
-const FROM = process.env.RESEND_FROM || "Reslv <onboarding@resend.dev>";
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: Number(process.env.SMTP_PORT) === 465,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+const FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+// In local dev, force every send to your own inbox instead of the real
+// recipient — keeps test runs from emailing real customers/invitees.
+const DEV_REDIRECT_TO = process.env.EMAIL_DEV_REDIRECT_TO;
+const isProduction = process.env.NODE_ENV === "production";
 
 async function sendEmail({ to, subject, html }) {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn(`RESEND_API_KEY not set — skipping email "${subject}" to ${to}`);
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn(`SMTP credentials not set — skipping email "${subject}" to ${to}`);
     return null;
   }
+
+  const redirectDev = !isProduction && DEV_REDIRECT_TO;
+  const actualTo = redirectDev ? DEV_REDIRECT_TO : to;
+  const actualSubject = redirectDev ? `[DEV → ${to}] ${subject}` : subject;
+
   try {
-    const result = await resend.emails.send({ from: FROM, to, subject, html });
-    if (result.error) {
-      console.error("Resend send error:", result.error);
-    }
-    return result;
+    return await transporter.sendMail({
+      from: FROM,
+      to: actualTo,
+      subject: actualSubject,
+      html,
+    });
+
+    // --- Resend equivalent (swap back in once a domain is verified) ---
+    // const result = await resend.emails.send({
+    //   from: RESEND_FROM,
+    //   to: actualTo,
+    //   subject: actualSubject,
+    //   html,
+    // });
+    // if (result.error) {
+    //   console.error("Resend send error:", result.error);
+    // }
+    // return result;
   } catch (err) {
     // Email failures should never break the request they're attached to —
     // log and move on rather than throwing.
@@ -45,7 +87,7 @@ function button(href, label) {
 }
 
 // ---------------------------------------------------------------------
-// Team invite (existing — same signature/behavior, now sent via Resend)
+// Team invite
 // ---------------------------------------------------------------------
 export const sendInviteEmail = async (email, role, token, companyName) => {
   const inviteLink = `${process.env.CLIENT_URL}/accept-invite?token=${token}`;
