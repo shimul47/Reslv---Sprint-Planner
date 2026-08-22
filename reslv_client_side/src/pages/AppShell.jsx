@@ -382,7 +382,7 @@ export default function AppShell({ onLogout, user }) {
           }`}
         >
           {isDashboard ? (
-            <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
+            <div key="dashboard" className="max-w-5xl mx-auto animate-in fade-in duration-500">
               <header className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   Good afternoon, {user?.name.split(" ")[0]}
@@ -397,7 +397,7 @@ export default function AppShell({ onLogout, user }) {
                 {canSeeTickets && (
                   <div
                     onClick={() => navigate("/tickets/inbox")}
-                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group"
+                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.08)] hover:border-[var(--color-primary)] transition-[box-shadow,border-color] duration-200 cursor-pointer group"
                   >
                     <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
                       <Icons.Ticket />
@@ -416,7 +416,7 @@ export default function AppShell({ onLogout, user }) {
                 {canSeeSprintPlanner && (
                   <div
                     onClick={() => navigate("/sprint-planner")}
-                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group"
+                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.08)] hover:border-[var(--color-primary)] transition-[box-shadow,border-color] duration-200 cursor-pointer group"
                   >
                     <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
                       <Icons.Calendar />
@@ -435,7 +435,7 @@ export default function AppShell({ onLogout, user }) {
                 {isAdmin && (
                   <div
                     onClick={() => navigate("/admin/team")}
-                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group"
+                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.08)] hover:border-[var(--color-primary)] transition-[box-shadow,border-color] duration-200 cursor-pointer group"
                   >
                     <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
                       <Icons.Users />
@@ -454,7 +454,7 @@ export default function AppShell({ onLogout, user }) {
                 {isAdmin && (
                   <div
                     onClick={() => navigate("/billing")}
-                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group"
+                    className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.08)] hover:border-[var(--color-primary)] transition-[box-shadow,border-color] duration-200 cursor-pointer group"
                   >
                     <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
                       <Icons.CreditCard />
@@ -472,7 +472,7 @@ export default function AppShell({ onLogout, user }) {
             </div>
           ) : (
             /* Sub-system Outlet Area */
-            <div className="h-full w-full bg-white dark:bg-[var(--background)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden flex flex-col">
+            <div key="outlet" className="h-full w-full bg-white dark:bg-[var(--background)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden flex flex-col">
               <Outlet />
             </div>
           )}
