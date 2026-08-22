@@ -1,5 +1,5 @@
-import React, { useContext } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import React, { useContext, useEffect } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AuthContext } from "./context/AuthContext";
 
 import AppShell from "./pages/AppShell";
@@ -52,6 +52,31 @@ function RequireAuth({ allowedRoles, children }) {
   return children;
 }
 
+// Superadmin is the most privileged view in the app. A person can reach it
+// having already been on other authenticated pages (a different role's
+// dashboard, tickets, etc.), and the browser's Back button would otherwise
+// just reveal whichever of those pages preceded it in history — leaking
+// that content to anyone with physical access to the browser afterwards.
+// Pushing a guard entry on mount means the first Back press is caught here
+// (as a popstate event) instead of falling through to that page, and
+// logging out ensures Forward/repeated Back can't silently restore access.
+function BlockBackNavigation({ children }) {
+  const navigate = useNavigate();
+  const { logout } = useContext(AuthContext);
+
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    const handlePopState = () => {
+      logout();
+      navigate("/login", { replace: true });
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [navigate, logout]);
+
+  return children;
+}
+
 export default function App() {
   const { user, logout } = useContext(AuthContext);
 
@@ -73,15 +98,17 @@ export default function App() {
         path="/admin"
         element={
           <RequireAuth allowedRoles={["superadmin"]}>
-            <div className="relative">
-              <button
-                onClick={logout}
-                className="absolute top-9 right-8 z-50 bg-red-950 text-red-400 border border-red-800 text-[10px] font-mono px-3 py-1 rounded hover:bg-red-900 hover:text-white transition-all cursor-pointer"
-              >
-                DISCONNECT_SESSION
-              </button>
-              <SuperAdminDashboard />
-            </div>
+            <BlockBackNavigation>
+              <div className="relative">
+                <button
+                  onClick={logout}
+                  className="absolute top-9 right-8 z-50 bg-red-950 text-red-400 border border-red-800 text-[10px] font-mono px-3 py-1 rounded hover:bg-red-900 hover:text-white transition-all cursor-pointer"
+                >
+                  DISCONNECT_SESSION
+                </button>
+                <SuperAdminDashboard />
+              </div>
+            </BlockBackNavigation>
           </RequireAuth>
         }
       />

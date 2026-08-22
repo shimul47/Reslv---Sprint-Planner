@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate, Link } from "react-router-dom";
-import { MoreVertical, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { AuthContext } from "../context/AuthContext.jsx";
 import RoleSwitcher from "../components/RoleSwitcher.jsx";
 import { roleCan } from "../utils/permissions.js";
@@ -269,7 +269,7 @@ export default function AppShell({ onLogout, user }) {
               aria-label="Hide navigation"
               className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-[var(--color-primary)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer flex-shrink-0"
             >
-              <MoreVertical size={16} />
+              <ChevronLeft size={16} />
             </button>
           </div>
 
@@ -336,7 +336,7 @@ export default function AppShell({ onLogout, user }) {
                 aria-label="Show navigation"
                 className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[var(--color-primary)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
               >
-                <MoreVertical size={18} />
+                <ChevronRight size={18} />
               </button>
             )}
             <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
@@ -382,7 +382,7 @@ export default function AppShell({ onLogout, user }) {
           }`}
         >
           {isDashboard ? (
-            <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
               <header className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   Good afternoon, {user?.name.split(" ")[0]}

@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middlewares/auth.js";
+import { requireAuth } from "../middleware/authMiddleware.js";
 import {
   createCheckoutSession,
   createPortalSession,
@@ -16,11 +16,11 @@ const router = express.Router();
 // raw request body to verify the signature. It is intentionally not
 // registered here to avoid it being double-parsed as JSON.
 
-router.post("/create-checkout-session", protect, createCheckoutSession);
-router.post("/create-portal-session", protect, createPortalSession);
-router.get("/subscription", protect, getSubscription);
-router.get("/plans", protect, getPlans);
-router.post("/sync-checkout-session", protect, syncCheckoutSession);
+router.post("/create-checkout-session", requireAuth, createCheckoutSession);
+router.post("/create-portal-session", requireAuth, createPortalSession);
+router.get("/subscription", requireAuth, getSubscription);
+router.get("/plans", requireAuth, getPlans);
+router.post("/sync-checkout-session", requireAuth, syncCheckoutSession);
 
 export default router;
 export { handleWebhook };
