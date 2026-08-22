@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Circle, Clock, CheckCircle2 } from "lucide-react";
 import api from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import { useSprintPlanner } from "../../context/SprintPlannerContext.jsx";
@@ -7,10 +7,14 @@ import SprintPublishBar from "../../components/sprintPlanner/SprintPublishBar.js
 import TaskEditModal from "../../components/sprintPlanner/TaskEditModal.jsx";
 import NewTaskModal from "../../components/sprintPlanner/NewTaskModal.jsx";
 
+// Card color + icon per status — the sticky-note board this replaced used
+// one fixed color per column regardless of app theme (real sticky notes
+// don't change color in the dark), so these stay as literal hex values
+// rather than theme tokens.
 const STATUS_COLUMNS = [
-  { id: "todo", label: "To Do" },
-  { id: "in_progress", label: "In Progress" },
-  { id: "done", label: "Done" },
+  { id: "todo", label: "To Do", color: "#FFD591", Icon: Circle },
+  { id: "in_progress", label: "In Progress", color: "#78D3F8", Icon: Clock },
+  { id: "done", label: "Done", color: "#85E3B2", Icon: CheckCircle2 },
 ];
 
 export default function SprintBoardView() {
@@ -84,11 +88,6 @@ export default function SprintBoardView() {
     loadBoard();
   }, [loadBoard]);
 
-  const tasksFor = (pbiId, status) =>
-    tasks
-      .filter((t) => t.pbiId === pbiId && t.status === status)
-      .sort((a, b) => a.position - b.position);
-
   const canEditTask = (task) =>
     canManageActiveProject || String(task.assigneeId?._id || task.assigneeId || "") === String(user?.id);
 
@@ -156,17 +155,24 @@ export default function SprintBoardView() {
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const onDropOnCard = (e, pbiId, targetStatus, targetTaskId) => {
+  // Status columns are flat (no per-PBI sub-column anymore), so the target
+  // PBI for a drop is whichever PBI the dragged task already belongs to —
+  // dropping only changes its status/position, never its PBI.
+  const onDropOnCard = (e, targetStatus, targetTaskId) => {
     e.preventDefault();
     e.stopPropagation();
     const draggedId = e.dataTransfer.getData("text/plain");
-    if (draggedId && draggedId !== targetTaskId) moveTask(draggedId, pbiId, targetStatus, targetTaskId);
+    if (!draggedId || draggedId === targetTaskId) return;
+    const dragged = tasks.find((t) => t._id === draggedId);
+    if (dragged) moveTask(draggedId, dragged.pbiId, targetStatus, targetTaskId);
   };
 
-  const onDropOnColumn = (e, pbiId, targetStatus) => {
+  const onDropOnColumn = (e, targetStatus) => {
     e.preventDefault();
     const draggedId = e.dataTransfer.getData("text/plain");
-    if (draggedId) moveTask(draggedId, pbiId, targetStatus, null);
+    if (!draggedId) return;
+    const dragged = tasks.find((t) => t._id === draggedId);
+    if (dragged) moveTask(draggedId, dragged.pbiId, targetStatus, null);
   };
 
   if (!activeProject) {
@@ -214,85 +220,117 @@ export default function SprintBoardView() {
           <p className="text-xs text-[var(--text)] opacity-60">
             Nothing in this sprint yet — drag backlog items into it from the Product Backlog view.
           </p>
-        ) : (
-          <div className="flex flex-col gap-6 min-w-[900px]">
-            {pbis
-              .filter((pbi) => canManageActiveProject || tasks.some((t) => t.pbiId === pbi._id))
-              .map((pbi) => (
-                <div key={pbi._id} className="border border-[var(--color-border)] rounded-[var(--radius-md)] p-4 bg-[var(--color-card)]">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold text-[var(--text-h)]">{pbi.title}</h3>
-                    <div className="flex items-center gap-1.5">
-                      {pbi.storyPoints != null && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-xs bg-[var(--color-muted)] text-[var(--text-h)]">
-                          {pbi.storyPoints} pts
-                        </span>
-                      )}
-                      {canManageActiveProject && (
-                        <button
-                          onClick={() => setNewTaskFor(pbi)}
-                          className="flex items-center gap-1 text-[10px] font-medium text-[var(--text)] hover:text-[var(--text-h)] border border-dashed border-[var(--color-border)] rounded px-1.5 py-1 hover:bg-[var(--color-muted)] cursor-pointer"
-                        >
-                          <Plus size={11} /> Task
-                        </button>
-                      )}
-                    </div>
-                  </div>
+        ) : (() => {
+          const visiblePbis = pbis.filter(
+            (pbi) => canManageActiveProject || tasks.some((t) => t.pbiId === pbi._id),
+          );
+          const visiblePbiIds = new Set(visiblePbis.map((pbi) => pbi._id));
+          const pbiById = Object.fromEntries(visiblePbis.map((pbi) => [pbi._id, pbi]));
+          const tasksForStatus = (status) =>
+            tasks
+              .filter((t) => visiblePbiIds.has(t.pbiId) && t.status === status)
+              .sort((a, b) => a.position - b.position);
 
-                  <div className="grid grid-cols-3 gap-3">
-                    {STATUS_COLUMNS.map((col) => (
-                      <div
-                        key={col.id}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => onDropOnColumn(e, pbi._id, col.id)}
-                        className="flex flex-col gap-2 min-h-[60px]"
+          return (
+            <div className="flex flex-col gap-6 min-w-[900px]">
+              {/* Backlog items strip — a task always belongs to a PBI, so
+                  "add task" lives here per-PBI rather than in a status column. */}
+              <div className="flex flex-wrap gap-3">
+                {visiblePbis.map((pbi) => (
+                  <div
+                    key={pbi._id}
+                    className="flex items-center gap-1.5 bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-3 py-2"
+                  >
+                    <span className="text-xs font-bold text-[var(--text-h)]">{pbi.title}</span>
+                    {pbi.storyPoints != null && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-xs bg-[var(--color-muted)] text-[var(--text-h)]">
+                        {pbi.storyPoints} pts
+                      </span>
+                    )}
+                    {canManageActiveProject && (
+                      <button
+                        onClick={() => setNewTaskFor(pbi)}
+                        className="flex items-center gap-1 text-[10px] font-medium text-[var(--text)] hover:text-[var(--text-h)] border border-dashed border-[var(--color-border)] rounded px-1.5 py-1 hover:bg-[var(--color-muted)] cursor-pointer"
                       >
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text)] opacity-60">
-                          {col.label}
-                        </span>
-                        {tasksFor(pbi._id, col.id).map((task) => {
-                          const editable = canEditTask(task);
-                          return (
-                            <div
-                              key={task._id}
-                              draggable={editable}
-                              onDragStart={(e) => onDragStart(e, task)}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => onDropOnCard(e, pbi._id, col.id, task._id)}
-                              onClick={() => setOpenTask({ task, pbi })}
-                              className={`bg-[var(--color-background)] border border-[var(--color-border)] rounded-[var(--radius-sm)] p-2.5 text-xs hover:border-[var(--color-primary)] transition-colors ${editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-                            >
-                              <p className="font-semibold text-[var(--text-h)] line-clamp-2 mb-1">
-                                {task.title}
-                              </p>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-[var(--text)] opacity-70 truncate">
-                                  {task.assigneeId?.name || "Unassigned"}
-                                </span>
-                                {task.remainingHours != null && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      quickLogHour(task);
-                                    }}
-                                    disabled={!editable || task.remainingHours <= 0}
-                                    title="Log 1 hour"
-                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-xs bg-[var(--color-muted)] text-[var(--text-h)] hover:bg-[var(--color-secondary)] disabled:opacity-40 cursor-pointer flex-shrink-0"
-                                  >
-                                    {task.remainingHours}h left
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
+                        <Plus size={11} /> Task
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
-          </div>
-        )}
+                ))}
+              </div>
+
+              {/* Status tracks — one wide column per status, each a flat
+                  vertical stack of sticky-note task cards spanning every PBI. */}
+              <div className="grid grid-cols-3 gap-6">
+                {STATUS_COLUMNS.map((col) => (
+                  <div
+                    key={col.id}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => onDropOnColumn(e, col.id)}
+                    className="flex flex-col gap-3 min-h-[120px]"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <col.Icon size={20} style={{ color: col.color }} />
+                      <h3 className="text-lg font-bold tracking-tight text-[var(--text-h)]">
+                        {col.label}
+                      </h3>
+                    </div>
+
+                    {tasksForStatus(col.id).map((task) => {
+                      const editable = canEditTask(task);
+                      const pbi = pbiById[task.pbiId];
+                      return (
+                        <div
+                          key={task._id}
+                          draggable={editable}
+                          onDragStart={(e) => onDragStart(e, task)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => onDropOnCard(e, col.id, task._id)}
+                          onClick={() => setOpenTask({ task, pbi })}
+                          style={{ backgroundColor: col.color }}
+                          className={`relative rounded-tl-sm rounded-tr-sm p-3 text-neutral-900 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_6px_10px_rgba(0,0,0,0.04)] transition-all hover:scale-[1.01] duration-150 before:content-[''] before:absolute before:left-0 before:right-0 before:bottom-0 before:h-2 before:bg-inherit before:rounded-bl-[40%_12px] before:rounded-br-[40%_12px] before:shadow-[0_4px_5px_rgba(0,0,0,0.15)] before:translate-y-[2px] ${editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+                        >
+                          <p className="font-semibold text-sm line-clamp-2 mb-1.5 relative z-10">
+                            {task.title}
+                          </p>
+                          {pbi && (
+                            <p className="text-[10px] opacity-70 truncate mb-2 relative z-10">
+                              {pbi.title}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between relative z-10">
+                            <span className="text-[9px] font-bold bg-black/15 text-neutral-800 px-1.5 py-0.5 rounded-xs uppercase truncate max-w-[60%]">
+                              {task.assigneeId?.name || "Unassigned"}
+                            </span>
+                            {task.remainingHours != null && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  quickLogHour(task);
+                                }}
+                                disabled={!editable || task.remainingHours <= 0}
+                                title="Log 1 hour"
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-xs bg-black/15 text-neutral-800 hover:bg-black/25 disabled:opacity-40 cursor-pointer flex-shrink-0"
+                              >
+                                {task.remainingHours}h left
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {tasksForStatus(col.id).length === 0 && (
+                      <div className="border border-dashed border-[var(--color-ring)] opacity-40 rounded-sm h-16 flex items-center justify-center text-[11px] text-[var(--text)]">
+                        + Open Slot
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {inheritedSprints.length > 0 && (
           <div className="flex flex-col gap-2 mt-6">
