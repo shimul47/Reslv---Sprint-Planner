@@ -7,6 +7,7 @@ import {
   revokeInvite,
   getSprintPlannerSettings,
   updateSprintPlannerSettings,
+  updateMemberSegment,
 } from "../controllers/teamController.js";
 import { requireAuth, requireRoles } from "../middleware/authMiddleware.js";
 
@@ -20,6 +21,7 @@ router.patch("/sprint-planner-settings", updateSprintPlannerSettings);
 router.post("/invite", inviteTeamMember);
 router.delete("/invites/:inviteId", revokeInvite);
 router.patch("/:userId/roles", updateMemberRoles);
+router.patch("/:userId/segment", updateMemberSegment);
 router.delete("/:userId", removeMember);
 
 export default router;

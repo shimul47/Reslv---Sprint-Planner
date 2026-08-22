@@ -16,16 +16,10 @@ const companySchema = new mongoose.Schema(
       autoAssignOnReply: { type: Boolean, default: true },
       supportHoursNote: { type: String, default: "", trim: true, maxlength: 200 },
     },
-    // Administration-section permissions for the Sprint Planner module — a
-    // plain project "member" is normally manager-gated out of these actions;
-    // toggling one on relaxes that gate company-wide. Publish-visibility
-    // (unpublished sprints stay invisible to employees) is intentionally not
-    // one of these — it's not configurable.
-    sprintPlannerSettings: {
-      employeesCanCreateTasks: { type: Boolean, default: false },
-      employeesCanEditBacklog: { type: Boolean, default: false },
-      employeesCanPublishSprints: { type: Boolean, default: false },
-    },
+    // Default per-employee sprint-hour capacity, editable by an admin in
+    // Sprint Planner settings. Every sprint uses this unless it has its own
+    // override (see Sprint.capacityHoursOverride).
+    defaultSprintHours: { type: Number, default: 60, min: 0 },
   },
   { timestamps: true },
 );

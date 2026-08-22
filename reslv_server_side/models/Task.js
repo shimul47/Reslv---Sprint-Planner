@@ -2,21 +2,9 @@ import mongoose from "mongoose";
 
 const taskSchema = new mongoose.Schema(
   {
-    pbiId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Pbi",
-      required: true,
-      index: true,
-    },
     sprintId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Sprint",
-      required: true,
-      index: true,
-    },
-    projectId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
       required: true,
       index: true,
     },
@@ -28,9 +16,28 @@ const taskSchema = new mongoose.Schema(
     },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
+    taskType: {
+      type: String,
+      enum: ["new_feature", "bug", "improvement", "chore"],
+      default: "new_feature",
+    },
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium",
+    },
     assigneeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
+      index: true,
+    },
+    // Which team this task belongs to — chosen explicitly by the sprint
+    // planner (defaults to the assignee's segment client-side), independent
+    // of the assignee so it survives a later reassignment/diversion.
+    segmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Segment",
       default: null,
       index: true,
     },
@@ -39,10 +46,14 @@ const taskSchema = new mongoose.Schema(
       enum: ["todo", "in_progress", "done"],
       default: "todo",
     },
-    estimateHours: { type: Number, default: null },
-    remainingHours: { type: Number, default: null },
-    // Set exactly when status transitions to "done", cleared if it moves
-    // back — powers cycle-time stats without guessing from updatedAt.
+    approximateHours: { type: Number, required: true, min: 0 },
+    // Only ever set once, on completeTask — the employee's self-reported
+    // actual time, compared against approximateHours on the analytics page.
+    actualHours: { type: Number, default: null, min: 0 },
+    // Set on "attempt" — when the assignee starts working the task.
+    startedAt: { type: Date, default: null },
+    // Set exactly when status transitions to "done" — powers cycle-time
+    // stats without guessing from updatedAt.
     doneAt: { type: Date, default: null },
     position: { type: Number, default: 0 },
     createdBy: {
@@ -56,6 +67,7 @@ const taskSchema = new mongoose.Schema(
 
 taskSchema.index({ sprintId: 1, status: 1, position: 1 });
 taskSchema.index({ sprintId: 1, assigneeId: 1 });
+taskSchema.index({ companyId: 1, assigneeId: 1 });
 
 const Task = mongoose.models.Task || mongoose.model("Task", taskSchema);
 

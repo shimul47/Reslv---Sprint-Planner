@@ -1,41 +1,45 @@
-import Task from "../models/Task.js";
-import Pbi from "../models/Pbi.js";
 import Sprint from "../models/Sprint.js";
-import TimeLog from "../models/TimeLog.js";
+import Task from "../models/Task.js";
 import TaskRequest from "../models/TaskRequest.js";
-import ProjectMember from "../models/ProjectMember.js";
-import { isOverseer } from "../middleware/projectAccess.js";
+import User from "../models/User.js";
+import Company from "../models/Company.js";
+import { resolveCompanyId } from "../utils/companyScope.js";
 
-function canManage(req) {
-  return isOverseer(req.user) || req.projectMember?.projectRole === "manager";
-}
+const OVERSEER_ROLES = ["admin", "superadmin", "sprint_planner"];
+const isOverseer = (user) => Boolean(user?.roles?.some((r) => OVERSEER_ROLES.includes(r)));
 
+// Route is gated to OVERSEER_ROLES in routes/sprintPlanner.js.
 export const createTask = async (req, res) => {
   try {
-    const { pbiId, sprintId, title, description, assigneeId, estimateHours } = req.body;
-    if (!pbiId || !sprintId || !title?.trim()) {
-      return res.status(400).json({ message: "pbiId, sprintId, and title are required." });
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
     }
 
-    const [pbi, sprint] = await Promise.all([
-      Pbi.findOne({ _id: pbiId, projectId: req.project._id }),
-      Sprint.findOne({ _id: sprintId, projectId: req.project._id }),
-    ]);
-    if (!pbi || !sprint) {
-      return res.status(404).json({ message: "PBI or sprint not found." });
+    const sprint = await Sprint.findOne({ _id: req.params.sprintId, companyId });
+    if (!sprint) {
+      return res.status(404).json({ message: "Sprint not found." });
     }
 
-    const count = await Task.countDocuments({ sprintId, status: "todo" });
+    const { title, description, taskType, priority, approximateHours, assigneeId, segmentId } = req.body;
+    if (!title?.trim()) {
+      return res.status(400).json({ message: "Title is required." });
+    }
+    if (approximateHours === undefined || approximateHours === null || Number(approximateHours) < 0) {
+      return res.status(400).json({ message: "approximateHours is required." });
+    }
+
+    const count = await Task.countDocuments({ sprintId: sprint._id, status: "todo" });
     const task = await Task.create({
-      pbiId,
-      sprintId,
-      projectId: req.project._id,
-      companyId: req.project.companyId,
+      sprintId: sprint._id,
+      companyId,
       title: title.trim(),
       description: description?.trim() || "",
+      taskType: taskType || "new_feature",
+      priority: priority || "medium",
       assigneeId: assigneeId || null,
-      estimateHours: estimateHours ?? null,
-      remainingHours: estimateHours ?? null,
+      segmentId: segmentId || null,
+      approximateHours: Number(approximateHours),
       position: count,
       createdBy: req.user.id,
     });
@@ -47,44 +51,36 @@ export const createTask = async (req, res) => {
   }
 };
 
-// General PATCH, but the allowed fields depend on who's asking: a manager/
-// overseer can edit anything, while the task's own assignee (a plain
-// employee) may only move it across the board and update its remaining
-// hours — enough to run the sprint board's drag & drop + inline time log,
-// without letting them reassign or retitle work that isn't theirs.
+// Overseer-only content/reassignment edits, plus board drag-and-drop
+// (status limited to todo <-> in_progress — "done" only happens through
+// completeTask, since that's the only place actualHours gets captured).
 export const updateTask = async (req, res) => {
   try {
-    const task = await Task.findOne({ _id: req.params.taskId, projectId: req.project._id });
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
+    }
+
+    const task = await Task.findOne({ _id: req.params.id, companyId });
     if (!task) {
       return res.status(404).json({ message: "Task not found." });
     }
 
-    const isManager = canManage(req);
-    const isSelfAssignee = String(task.assigneeId || "") === String(req.user.id);
-    if (!isManager && !isSelfAssignee) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
     if (req.body.status !== undefined) {
-      if (!["todo", "in_progress", "done"].includes(req.body.status)) {
-        return res.status(400).json({ message: "Invalid status." });
+      if (!["todo", "in_progress"].includes(req.body.status)) {
+        return res.status(400).json({ message: "Use the complete endpoint to mark a task done." });
       }
-      // doneAt is the source of truth for cycle-time stats — set exactly on
-      // the todo/in_progress -> done transition, cleared if it moves back.
-      if (req.body.status === "done" && task.status !== "done") task.doneAt = new Date();
-      else if (req.body.status !== "done" && task.status === "done") task.doneAt = null;
       task.status = req.body.status;
+      if (req.body.status === "in_progress" && !task.startedAt) task.startedAt = new Date();
     }
     if (req.body.position !== undefined) task.position = req.body.position;
-    if (req.body.remainingHours !== undefined) task.remainingHours = req.body.remainingHours;
-
-    if (isManager) {
-      if (req.body.title !== undefined) task.title = req.body.title.trim();
-      if (req.body.description !== undefined) task.description = req.body.description.trim();
-      if (req.body.assigneeId !== undefined) task.assigneeId = req.body.assigneeId || null;
-      if (req.body.estimateHours !== undefined) task.estimateHours = req.body.estimateHours;
-      if (req.body.sprintId !== undefined) task.sprintId = req.body.sprintId;
-    }
+    if (req.body.title !== undefined) task.title = req.body.title.trim();
+    if (req.body.description !== undefined) task.description = req.body.description.trim();
+    if (req.body.taskType !== undefined) task.taskType = req.body.taskType;
+    if (req.body.priority !== undefined) task.priority = req.body.priority;
+    if (req.body.assigneeId !== undefined) task.assigneeId = req.body.assigneeId || null;
+    if (req.body.segmentId !== undefined) task.segmentId = req.body.segmentId || null;
+    if (req.body.approximateHours !== undefined) task.approximateHours = Number(req.body.approximateHours);
 
     await task.save();
     res.json({ task });
@@ -94,16 +90,25 @@ export const updateTask = async (req, res) => {
   }
 };
 
+// Completed work is kept for the record (analytics, cycle-time stats) — a
+// "done" task can't be deleted, since there's no way to reopen it either.
 export const deleteTask = async (req, res) => {
   try {
-    const task = await Task.findOneAndDelete({ _id: req.params.taskId, projectId: req.project._id });
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
+    }
+
+    const task = await Task.findOne({ _id: req.params.id, companyId });
     if (!task) {
       return res.status(404).json({ message: "Task not found." });
     }
-    await Promise.all([
-      TimeLog.deleteMany({ taskId: task._id }),
-      TaskRequest.deleteMany({ taskId: task._id }),
-    ]);
+    if (task.status === "done") {
+      return res.status(409).json({ message: "A completed task can't be deleted." });
+    }
+
+    await task.deleteOne();
+    await TaskRequest.deleteMany({ taskId: task._id });
     res.json({ message: "Task deleted.", id: task._id });
   } catch (error) {
     console.error("Delete task error:", error);
@@ -111,165 +116,151 @@ export const deleteTask = async (req, res) => {
   }
 };
 
-// ── Time logging directly on the sprint board ───────────────────────────────
-
-export const listTimeLogs = async (req, res) => {
+// The employee-facing task list: only tasks assigned to me, only from
+// published sprints — this is the actual enforcement point for "an employee
+// only sees their own assigned work," not just a client-side filter.
+// Only the most recently published sprint is shown — publishing a new
+// sprint is what clears an employee's view of the previous one, so nothing
+// extra needs to happen when the old sprint isn't explicitly closed.
+export const listMyTasks = async (req, res) => {
   try {
-    const task = await Task.findOne({ _id: req.params.taskId, projectId: req.project._id });
-    if (!task) {
-      return res.status(404).json({ message: "Task not found." });
-    }
-    const logs = await TimeLog.find({ taskId: task._id })
-      .sort({ createdAt: -1 })
-      .populate("userId", "name")
-      .lean();
-    res.json({ logs });
-  } catch (error) {
-    console.error("List time logs error:", error);
-    res.status(500).json({ message: "Failed to load time logs." });
-  }
-};
-
-export const logTime = async (req, res) => {
-  try {
-    const task = await Task.findOne({ _id: req.params.taskId, projectId: req.project._id });
-    if (!task) {
-      return res.status(404).json({ message: "Task not found." });
-    }
-
-    const isSelfAssignee = String(task.assigneeId || "") === String(req.user.id);
-    if (!canManage(req) && !isSelfAssignee) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    const { hours, remainingHours, comment, spentOn } = req.body;
-    if (hours === undefined || hours === null || Number(hours) < 0) {
-      return res.status(400).json({ message: "hours is required." });
-    }
-
-    // Captures the task's resulting remainingHours on the log entry itself
-    // (even when this call didn't change it) so the hours burndown can be
-    // reconstructed later purely by replaying TimeLog history in order.
-    const resultingRemaining = remainingHours !== undefined ? remainingHours : task.remainingHours;
-
-    const log = await TimeLog.create({
-      taskId: task._id,
-      projectId: req.project._id,
-      companyId: req.project.companyId,
-      userId: req.user.id,
-      hours: Number(hours),
-      remainingHoursAfter: resultingRemaining ?? null,
-      spentOn: spentOn || new Date(),
-      comment: comment?.trim() || "",
-    });
-
-    if (remainingHours !== undefined) {
-      task.remainingHours = remainingHours;
-      await task.save();
-    }
-
-    res.status(201).json({ log, task });
-  } catch (error) {
-    console.error("Log time error:", error);
-    res.status(500).json({ message: "Failed to log time." });
-  }
-};
-
-// ── Task requests: employee-to-employee handoff ─────────────────────────────
-
-// A task's current assignee (or a manager/overseer) can ask another project
-// member to take it over — this is the "employee can pass a request to
-// another employee of the company" workflow.
-export const createTaskRequest = async (req, res) => {
-  try {
-    const task = await Task.findOne({ _id: req.params.taskId, projectId: req.project._id });
-    if (!task) {
-      return res.status(404).json({ message: "Task not found." });
-    }
-
-    const isSelfAssignee = String(task.assigneeId || "") === String(req.user.id);
-    if (!canManage(req) && !isSelfAssignee) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    const { toUserId, message } = req.body;
-    if (!toUserId) {
-      return res.status(400).json({ message: "toUserId is required." });
-    }
-    if (String(toUserId) === String(req.user.id)) {
-      return res.status(400).json({ message: "Cannot request yourself." });
-    }
-
-    const targetMember = await ProjectMember.findOne({
-      projectId: req.project._id,
-      userId: toUserId,
-    });
-    if (!targetMember) {
-      return res.status(404).json({ message: "That teammate isn't on this project." });
-    }
-
-    const request = await TaskRequest.create({
-      taskId: task._id,
-      projectId: req.project._id,
-      companyId: req.project.companyId,
-      fromUserId: req.user.id,
-      toUserId,
-      message: message?.trim() || "",
-    });
-
-    res.status(201).json({ request });
-  } catch (error) {
-    console.error("Create task request error:", error);
-    res.status(500).json({ message: "Failed to send task request." });
-  }
-};
-
-// Global inbox (not project-nested) — a user's incoming/outgoing task
-// requests across every project they touch.
-export const listMyTaskRequests = async (req, res) => {
-  try {
-    const requests = await TaskRequest.find({
-      $or: [{ toUserId: req.user.id }, { fromUserId: req.user.id }],
+    const currentSprint = await Sprint.findOne({
+      companyId: req.user.companyId,
+      published: true,
     })
-      .sort({ createdAt: -1 })
-      .populate("taskId", "title")
-      .populate("fromUserId", "name email")
-      .populate("toUserId", "name email")
-      .populate("projectId", "name")
+      .sort({ publishedAt: -1 })
+      .select("_id name status startDate endDate")
       .lean();
-    res.json({ requests });
+
+    if (!currentSprint) {
+      return res.json({ tasks: [] });
+    }
+
+    const tasks = await Task.find({
+      assigneeId: req.user.id,
+      sprintId: currentSprint._id,
+    })
+      .sort({ status: 1, updatedAt: -1 })
+      .lean();
+
+    const withSprint = tasks.map((task) => ({ ...task, sprint: currentSprint }));
+
+    res.json({ tasks: withSprint });
   } catch (error) {
-    console.error("List task requests error:", error);
-    res.status(500).json({ message: "Failed to load task requests." });
+    console.error("List my tasks error:", error);
+    res.status(500).json({ message: "Failed to load your tasks." });
   }
 };
 
-export const resolveTaskRequest = async (req, res) => {
+// Lets a task's own assignee see teammates' remaining hours before
+// diverting it to one of them — the same shape as spSprintController's
+// getSprintCapacity (overseer-only), scoped down to a task the caller
+// actually owns instead of requiring the overseer role.
+export const getTaskCapacity = async (req, res) => {
   try {
-    const { decision } = req.body; // "accept" | "decline"
-    if (!["accept", "decline"].includes(decision)) {
-      return res.status(400).json({ message: "decision must be accept or decline." });
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found." });
+    }
+    if (String(task.assigneeId || "") !== String(req.user.id) && !isOverseer(req.user)) {
+      return res.status(403).json({ message: "Forbidden" });
     }
 
-    const request = await TaskRequest.findById(req.params.requestId);
-    if (!request || String(request.toUserId) !== String(req.user.id)) {
-      return res.status(404).json({ message: "Task request not found." });
-    }
-    if (request.status !== "pending") {
-      return res.status(400).json({ message: "This request has already been resolved." });
+    const [company, sprint, users, sprintTasks] = await Promise.all([
+      Company.findById(task.companyId).select("defaultSprintHours").lean(),
+      Sprint.findById(task.sprintId).select("capacityHoursOverride").lean(),
+      User.find({ companyId: task.companyId, roles: { $ne: "customer" } })
+        .select("name email")
+        .lean(),
+      Task.find({ sprintId: task.sprintId, assigneeId: { $ne: null }, _id: { $ne: task._id } })
+        .select("assigneeId approximateHours")
+        .lean(),
+    ]);
+
+    const allocatedByUser = new Map();
+    for (const t of sprintTasks) {
+      const key = String(t.assigneeId);
+      allocatedByUser.set(key, (allocatedByUser.get(key) || 0) + (t.approximateHours || 0));
     }
 
-    request.status = decision === "accept" ? "accepted" : "declined";
-    request.resolvedAt = new Date();
-    await request.save();
+    const defaultSprintHours = company?.defaultSprintHours ?? 60;
+    const capacityHours = sprint?.capacityHoursOverride ?? defaultSprintHours;
+    const employees = users.map((user) => {
+      const allocatedHours = allocatedByUser.get(String(user._id)) || 0;
+      return {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        capacityHours,
+        allocatedHours,
+        remainingHours: capacityHours - allocatedHours,
+      };
+    });
 
-    if (decision === "accept") {
-      await Task.findByIdAndUpdate(request.taskId, { assigneeId: request.toUserId });
-    }
-
-    res.json({ request });
+    res.json({ sprintId: task.sprintId, defaultSprintHours, employees });
   } catch (error) {
-    console.error("Resolve task request error:", error);
-    res.status(500).json({ message: "Failed to resolve task request." });
+    console.error("Get task capacity error:", error);
+    res.status(500).json({ message: "Failed to load capacity." });
+  }
+};
+
+export const attemptTask = async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found." });
+    }
+    if (String(task.assigneeId || "") !== String(req.user.id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    if (task.status !== "todo") {
+      return res.status(409).json({ message: "This task has already been started." });
+    }
+
+    const sprint = await Sprint.findById(task.sprintId).select("published").lean();
+    if (!sprint?.published) {
+      return res.status(404).json({ message: "Task not found." });
+    }
+
+    task.status = "in_progress";
+    task.startedAt = new Date();
+    await task.save();
+
+    res.json({ task });
+  } catch (error) {
+    console.error("Attempt task error:", error);
+    res.status(500).json({ message: "Failed to attempt task." });
+  }
+};
+
+export const completeTask = async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found." });
+    }
+
+    const isSelfAssignee = String(task.assigneeId || "") === String(req.user.id);
+    if (!isSelfAssignee && !isOverseer(req.user)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    if (task.status === "done") {
+      return res.status(409).json({ message: "This task is already done." });
+    }
+
+    const { actualHours } = req.body;
+    if (actualHours === undefined || actualHours === null || Number(actualHours) < 0) {
+      return res.status(400).json({ message: "actualHours is required." });
+    }
+
+    task.status = "done";
+    task.doneAt = new Date();
+    task.actualHours = Number(actualHours);
+    await task.save();
+
+    res.json({ task });
+  } catch (error) {
+    console.error("Complete task error:", error);
+    res.status(500).json({ message: "Failed to complete task." });
   }
 };

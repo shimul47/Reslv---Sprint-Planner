@@ -8,9 +8,9 @@ const taskRequestSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    projectId: {
+    sprintId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
+      ref: "Sprint",
       required: true,
       index: true,
     },

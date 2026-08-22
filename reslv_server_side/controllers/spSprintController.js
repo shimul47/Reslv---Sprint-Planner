@@ -1,16 +1,35 @@
 import Sprint from "../models/Sprint.js";
 import Task from "../models/Task.js";
-import Pbi from "../models/Pbi.js";
-import { isEmployeeOnly, collectAncestorProjects } from "../middleware/projectAccess.js";
+import TaskRequest from "../models/TaskRequest.js";
+import User from "../models/User.js";
+import Company from "../models/Company.js";
+import { resolveCompanyId } from "../utils/companyScope.js";
 
-// Employees never see an unpublished sprint at all — it doesn't exist for
-// them until an admin/manager publishes it.
+// Every route in this controller is already gated to OVERSEER_ROLES
+// (admin/superadmin/sprint_planner) in routes/sprintPlanner.js — employees
+// never call these, they only ever see GET /tasks/my.
+
+async function loadCompanySprint(req, res) {
+  const companyId = resolveCompanyId(req);
+  if (!companyId) {
+    res.status(400).json({ message: "companyId is required." });
+    return null;
+  }
+  const sprint = await Sprint.findOne({ _id: req.params.id, companyId });
+  if (!sprint) {
+    res.status(404).json({ message: "Sprint not found." });
+    return null;
+  }
+  return sprint;
+}
+
 export const listSprints = async (req, res) => {
   try {
-    const filter = { projectId: req.project._id };
-    if (isEmployeeOnly(req.user)) filter.published = true;
-
-    const sprints = await Sprint.find(filter).sort({ createdAt: -1 }).lean();
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
+    }
+    const sprints = await Sprint.find({ companyId }).sort({ createdAt: -1 }).lean();
     res.json({ sprints });
   } catch (error) {
     console.error("List sprints error:", error);
@@ -18,55 +37,23 @@ export const listSprints = async (req, res) => {
   }
 };
 
-// Read-only: sprints an ancestor project has opted to share down
-// (shareWithSubprojects), surfaced here but not editable — mutations still
-// require membership on the owning project. Same publish-visibility rule as
-// listSprints applies to employee-only viewers.
-export const listInheritedSprints = async (req, res) => {
-  try {
-    const ancestors = await collectAncestorProjects(req.project);
-    if (ancestors.length === 0) {
-      return res.json({ sprints: [] });
-    }
-
-    const nameByProjectId = new Map(ancestors.map((p) => [String(p._id), p.name]));
-    const filter = {
-      projectId: { $in: ancestors.map((p) => p._id) },
-      shareWithSubprojects: true,
-    };
-    if (isEmployeeOnly(req.user)) filter.published = true;
-
-    const sprints = await Sprint.find(filter).sort({ createdAt: -1 }).lean();
-    const withCounts = await Promise.all(
-      sprints.map(async (s) => ({
-        ...s,
-        sourceProjectName: nameByProjectId.get(String(s.projectId)) || "Parent project",
-        taskCount: await Task.countDocuments({ sprintId: s._id }),
-      })),
-    );
-
-    res.json({ sprints: withCounts });
-  } catch (error) {
-    console.error("List inherited sprints error:", error);
-    res.status(500).json({ message: "Failed to load shared sprints." });
-  }
-};
-
 export const createSprint = async (req, res) => {
   try {
-    const { name, goal, startDate, endDate, shareWithSubprojects } = req.body;
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required." });
+    }
+    const { name, goal, startDate, endDate } = req.body;
     if (!name?.trim()) {
       return res.status(400).json({ message: "Sprint name is required." });
     }
 
     const sprint = await Sprint.create({
-      projectId: req.project._id,
-      companyId: req.project.companyId,
+      companyId,
       name: name.trim(),
       goal: goal?.trim() || "",
       startDate: startDate || null,
       endDate: endDate || null,
-      shareWithSubprojects: Boolean(shareWithSubprojects),
       createdBy: req.user.id,
     });
 
@@ -77,31 +64,33 @@ export const createSprint = async (req, res) => {
   }
 };
 
-const loadManageableSprint = async (req, res) => {
-  const sprint = await Sprint.findOne({ _id: req.params.sprintId, projectId: req.project._id });
-  if (!sprint) {
-    res.status(404).json({ message: "Sprint not found." });
-    return null;
-  }
-  return sprint;
+export const getSprint = async (req, res) => {
+  const sprint = await loadCompanySprint(req, res);
+  if (!sprint) return;
+  res.json({ sprint });
 };
 
 export const updateSprint = async (req, res) => {
   try {
-    const sprint = await loadManageableSprint(req, res);
+    const sprint = await loadCompanySprint(req, res);
     if (!sprint) return;
 
-    const { name, goal, startDate, endDate, status, shareWithSubprojects } = req.body;
+    const { name, goal, startDate, endDate, status, capacityHoursOverride } = req.body;
     if (name !== undefined) sprint.name = name.trim();
     if (goal !== undefined) sprint.goal = goal.trim();
     if (startDate !== undefined) sprint.startDate = startDate || null;
     if (endDate !== undefined) sprint.endDate = endDate || null;
-    if (shareWithSubprojects !== undefined) sprint.shareWithSubprojects = Boolean(shareWithSubprojects);
     if (status !== undefined) {
       if (!["planning", "active", "closed"].includes(status)) {
         return res.status(400).json({ message: "Invalid status." });
       }
       sprint.status = status;
+    }
+    if (capacityHoursOverride !== undefined) {
+      if (capacityHoursOverride !== null && Number(capacityHoursOverride) < 0) {
+        return res.status(400).json({ message: "capacityHoursOverride must be a non-negative number or null." });
+      }
+      sprint.capacityHoursOverride = capacityHoursOverride === null ? null : Number(capacityHoursOverride);
     }
 
     await sprint.save();
@@ -114,7 +103,7 @@ export const updateSprint = async (req, res) => {
 
 export const publishSprint = async (req, res) => {
   try {
-    const sprint = await loadManageableSprint(req, res);
+    const sprint = await loadCompanySprint(req, res);
     if (!sprint) return;
 
     sprint.published = true;
@@ -131,15 +120,13 @@ export const publishSprint = async (req, res) => {
 
 export const deleteSprint = async (req, res) => {
   try {
-    const sprint = await loadManageableSprint(req, res);
+    const sprint = await loadCompanySprint(req, res);
     if (!sprint) return;
 
-    const taskCount = await Task.countDocuments({ sprintId: sprint._id });
-    if (taskCount > 0) {
-      return res.status(400).json({ message: "Remove this sprint's tasks before deleting it." });
-    }
-
-    await Pbi.updateMany({ sprintId: sprint._id }, { sprintId: null });
+    await Promise.all([
+      Task.deleteMany({ sprintId: sprint._id }),
+      TaskRequest.deleteMany({ sprintId: sprint._id }),
+    ]);
     await sprint.deleteOne();
     res.json({ message: "Sprint deleted.", id: sprint._id });
   } catch (error) {
@@ -148,36 +135,112 @@ export const deleteSprint = async (req, res) => {
   }
 };
 
-// The Sprint Board data: tasks grouped by status, each carrying its parent
-// PBI for swimlane grouping. Employees are hard-filtered server-side to only
-// their own assigned tasks — this is the actual enforcement point for "an
-// employee only sees what's assigned to them", not just a client-side filter.
 export const getSprintBoard = async (req, res) => {
   try {
-    const sprint = await Sprint.findOne({ _id: req.params.sprintId, projectId: req.project._id });
-    if (!sprint) {
-      return res.status(404).json({ message: "Sprint not found." });
-    }
+    const sprint = await loadCompanySprint(req, res);
+    if (!sprint) return;
 
-    const employeeOnly = isEmployeeOnly(req.user);
-    if (employeeOnly && !sprint.published) {
-      return res.status(404).json({ message: "Sprint not found." });
-    }
+    const tasks = await Task.find({ sprintId: sprint._id })
+      .sort({ status: 1, position: 1 })
+      .populate("assigneeId", "name email")
+      .lean();
 
-    const taskFilter = { sprintId: sprint._id };
-    if (employeeOnly) taskFilter.assigneeId = req.user.id;
-
-    const [tasks, pbis] = await Promise.all([
-      Task.find(taskFilter)
-        .sort({ status: 1, position: 1 })
-        .populate("assigneeId", "name email")
-        .lean(),
-      Pbi.find({ sprintId: sprint._id }).sort({ position: 1 }).lean(),
-    ]);
-
-    res.json({ sprint, tasks, pbis });
+    res.json({ sprint, tasks });
   } catch (error) {
     console.error("Get sprint board error:", error);
     res.status(500).json({ message: "Failed to load sprint board." });
+  }
+};
+
+// Powers the assignee picker: every employee in the sprint's company, their
+// effective capacity, how much of it is already allocated in this sprint,
+// and what's left. excludeTaskId lets the create/edit modal exclude the
+// task currently being edited from its own assignee's allocation.
+export const getSprintCapacity = async (req, res) => {
+  try {
+    const sprint = await loadCompanySprint(req, res);
+    if (!sprint) return;
+
+    const [company, users, tasks] = await Promise.all([
+      Company.findById(sprint.companyId).select("defaultSprintHours").lean(),
+      User.find({ companyId: sprint.companyId, roles: { $ne: "customer" } })
+        .select("name email segmentId")
+        .lean(),
+      Task.find({
+        sprintId: sprint._id,
+        assigneeId: { $ne: null },
+        ...(req.query.excludeTaskId ? { _id: { $ne: req.query.excludeTaskId } } : {}),
+      })
+        .select("assigneeId approximateHours")
+        .lean(),
+    ]);
+
+    const allocatedByUser = new Map();
+    for (const task of tasks) {
+      const key = String(task.assigneeId);
+      allocatedByUser.set(key, (allocatedByUser.get(key) || 0) + (task.approximateHours || 0));
+    }
+
+    // This sprint's own capacity override (if the admin set one) takes
+    // precedence over the company default — and only for this sprint, since
+    // a new sprint's capacityHoursOverride always starts back at null.
+    const defaultSprintHours = company?.defaultSprintHours ?? 60;
+    const capacityHours = sprint.capacityHoursOverride ?? defaultSprintHours;
+    const employees = users.map((user) => {
+      const allocatedHours = allocatedByUser.get(String(user._id)) || 0;
+      return {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        segmentId: user.segmentId || null,
+        capacityHours,
+        allocatedHours,
+        remainingHours: capacityHours - allocatedHours,
+      };
+    });
+
+    res.json({
+      sprintId: sprint._id,
+      defaultSprintHours,
+      capacityHoursOverride: sprint.capacityHoursOverride ?? null,
+      capacityHours,
+      employees,
+    });
+  } catch (error) {
+    console.error("Get sprint capacity error:", error);
+    res.status(500).json({ message: "Failed to load sprint capacity." });
+  }
+};
+
+
+export const getSprintStats = async (req, res) => {
+  try {
+    const sprint = await loadCompanySprint(req, res);
+    if (!sprint) return;
+
+    const tasks = await Task.find({ sprintId: sprint._id }).lean();
+
+    const taskStatusCounts = { todo: 0, in_progress: 0, done: 0 };
+    for (const task of tasks) taskStatusCounts[task.status] = (taskStatusCounts[task.status] || 0) + 1;
+
+    const doneTasks = tasks.filter((t) => t.doneAt);
+    const avgCycleTimeHours = doneTasks.length
+      ? doneTasks.reduce((sum, t) => sum + (new Date(t.doneAt) - new Date(t.createdAt)) / 3_600_000, 0) /
+        doneTasks.length
+      : null;
+
+    const totalApproximateHours = tasks.reduce((sum, t) => sum + (t.approximateHours || 0), 0);
+    const totalActualHoursSoFar = tasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
+
+    res.json({
+      taskCount: tasks.length,
+      taskStatusCounts,
+      avgCycleTimeHours,
+      totalApproximateHours,
+      totalActualHoursSoFar,
+    });
+  } catch (error) {
+    console.error("Get sprint stats error:", error);
+    res.status(500).json({ message: "Failed to compute sprint stats." });
   }
 };
