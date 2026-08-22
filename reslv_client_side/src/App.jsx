@@ -13,11 +13,9 @@ import {
 import { ReportsView } from "./components/workspace/Reports";
 import { SettingsView } from "./components/workspace/Settings";
 import SprintPlannerPage from "./pages/SprintPlannerPage";
-import ProductBacklogView from "./pages/sprintPlanner/ProductBacklogView";
 import SprintBoardView from "./pages/sprintPlanner/SprintBoardView";
-import BurndownChartView from "./pages/sprintPlanner/BurndownChartView";
-import ReleasePlanningView from "./pages/sprintPlanner/ReleasePlanningView";
 import ScrumStatsView from "./pages/sprintPlanner/ScrumStatsView";
+import PerformanceAnalyticsView from "./pages/sprintPlanner/PerformanceAnalyticsView";
 import TeamManagement from "./pages/TeamManagement";
 import BillingPage from "./pages/BillingPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -153,12 +151,9 @@ export default function App() {
           />
         </Route>
         <Route path="sprint-planner" element={<SprintPlannerPage />}>
-          <Route index element={<Navigate to="backlog" replace />} />
-          <Route path="backlog" element={<ProductBacklogView />} />
           <Route path="board" element={<SprintBoardView />} />
-          <Route path="burndown" element={<BurndownChartView />} />
-          <Route path="release" element={<ReleasePlanningView />} />
           <Route path="stats" element={<ScrumStatsView />} />
+          <Route path="performance" element={<PerformanceAnalyticsView />} />
         </Route>
         <Route path="admin/team" element={<TeamManagement />} />
         <Route path="billing" element={<BillingPage />} />

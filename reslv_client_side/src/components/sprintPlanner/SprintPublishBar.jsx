@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, Plus, Pencil } from "lucide-react";
 import api from "../../api/axios";
-import { useSprintPlanner } from "../../context/SprintPlannerContext.jsx";
 import HelpTip from "./HelpTip.jsx";
 
 export default function SprintPublishBar({
@@ -9,10 +8,8 @@ export default function SprintPublishBar({
   activeSprintId,
   setActiveSprintId,
   activeSprint,
-  canManage,
   onChanged,
 }) {
-  const { activeProject } = useSprintPlanner();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -26,7 +23,7 @@ export default function SprintPublishBar({
     if (!name.trim()) return;
     setBusy(true);
     try {
-      const res = await api.post(`/sprint-planner/projects/${activeProject._id}/sprints`, {
+      const res = await api.post("/sprint-planner/sprints", {
         name: name.trim(),
         startDate: startDate || null,
         endDate: endDate || null,
@@ -47,9 +44,7 @@ export default function SprintPublishBar({
   const handlePublish = async () => {
     setBusy(true);
     try {
-      await api.post(
-        `/sprint-planner/projects/${activeProject._id}/sprints/${activeSprintId}/publish`,
-      );
+      await api.post(`/sprint-planner/sprints/${activeSprintId}/publish`);
       await onChanged();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to publish sprint.");
@@ -68,7 +63,7 @@ export default function SprintPublishBar({
     e.preventDefault();
     setBusy(true);
     try {
-      await api.patch(`/sprint-planner/projects/${activeProject._id}/sprints/${activeSprintId}`, {
+      await api.patch(`/sprint-planner/sprints/${activeSprintId}`, {
         startDate: startDate || null,
         endDate: endDate || null,
       });
@@ -104,9 +99,10 @@ export default function SprintPublishBar({
       </div>
 
       <HelpTip title="Sprint Board">
-        Tasks are grouped by their backlog item. Drag a card between To Do / In Progress / Done, or
-        click "…h left" to log an hour against it. A sprint stays a private draft — only
-        managers see it — until you publish it.
+        Tasks are grouped into a swimlane per team — use each lane's "+ Task" button to add work
+        for that team. Drag a card between To Do / In Progress, or drop it on Done to record the
+        actual hours it took. A sprint stays a private draft — invisible to employees — until you
+        publish it.
       </HelpTip>
 
       {activeSprint && (
@@ -121,7 +117,7 @@ export default function SprintPublishBar({
         </span>
       )}
 
-      {activeSprint && canManage && !editingDates && (
+      {activeSprint && !editingDates && (
         <button
           onClick={openDateEditor}
           className="flex items-center gap-1 text-[10px] text-[var(--text)] opacity-70 hover:opacity-100 cursor-pointer"
@@ -165,65 +161,63 @@ export default function SprintPublishBar({
         </form>
       )}
 
-      {canManage && (
-        <div className="flex items-center gap-2 ml-auto">
-          {activeSprint && !activeSprint.published && (
+      <div className="flex items-center gap-2 ml-auto">
+        {activeSprint && !activeSprint.published && (
+          <button
+            onClick={handlePublish}
+            disabled={busy}
+            className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-[11px] font-bold px-3 py-1.5 rounded-[var(--radius-sm)] cursor-pointer hover:opacity-90 disabled:opacity-60"
+          >
+            Publish Sprint
+          </button>
+        )}
+        {creating ? (
+          <form onSubmit={handleCreate} className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Sprint name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="text-xs bg-[var(--color-input-background)] border border-[var(--color-border)] rounded px-2 py-1.5 focus:outline-hidden w-32"
+            />
+            <input
+              type="date"
+              title="Start date (optional)"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="text-[11px] bg-[var(--color-input-background)] border border-[var(--color-border)] rounded px-1.5 py-1.5 focus:outline-hidden"
+            />
+            <input
+              type="date"
+              title="End date (optional)"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="text-[11px] bg-[var(--color-input-background)] border border-[var(--color-border)] rounded px-1.5 py-1.5 focus:outline-hidden"
+            />
             <button
-              onClick={handlePublish}
-              disabled={busy}
-              className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-[11px] font-bold px-3 py-1.5 rounded-[var(--radius-sm)] cursor-pointer hover:opacity-90 disabled:opacity-60"
+              type="submit"
+              className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-[11px] font-semibold px-2.5 py-1.5 rounded cursor-pointer hover:opacity-90"
             >
-              Publish Sprint
+              Create
             </button>
-          )}
-          {creating ? (
-            <form onSubmit={handleCreate} className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                type="text"
-                placeholder="Sprint name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="text-xs bg-[var(--color-input-background)] border border-[var(--color-border)] rounded px-2 py-1.5 focus:outline-hidden w-32"
-              />
-              <input
-                type="date"
-                title="Start date (optional)"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="text-[11px] bg-[var(--color-input-background)] border border-[var(--color-border)] rounded px-1.5 py-1.5 focus:outline-hidden"
-              />
-              <input
-                type="date"
-                title="End date (optional)"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="text-[11px] bg-[var(--color-input-background)] border border-[var(--color-border)] rounded px-1.5 py-1.5 focus:outline-hidden"
-              />
-              <button
-                type="submit"
-                className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-[11px] font-semibold px-2.5 py-1.5 rounded cursor-pointer hover:opacity-90"
-              >
-                Create
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreating(false)}
-                className="text-[11px] text-[var(--text)] opacity-70 hover:opacity-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-            </form>
-          ) : (
             <button
-              onClick={() => setCreating(true)}
-              className="flex items-center gap-1 text-[11px] font-medium text-[var(--text)] hover:text-[var(--text-h)] border border-dashed border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 py-1.5 hover:bg-[var(--color-muted)] cursor-pointer"
+              type="button"
+              onClick={() => setCreating(false)}
+              className="text-[11px] text-[var(--text)] opacity-70 hover:opacity-100 cursor-pointer"
             >
-              <Plus size={12} /> New Sprint
+              Cancel
             </button>
-          )}
-        </div>
-      )}
+          </form>
+        ) : (
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1 text-[11px] font-medium text-[var(--text)] hover:text-[var(--text-h)] border border-dashed border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 py-1.5 hover:bg-[var(--color-muted)] cursor-pointer"
+          >
+            <Plus size={12} /> New Sprint
+          </button>
+        )}
+      </div>
 
       {error && <span className="text-[11px] text-red-500 w-full">{error}</span>}
     </div>
