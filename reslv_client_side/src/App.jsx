@@ -16,6 +16,7 @@ import SprintPlannerPage from "./pages/SprintPlannerPage";
 import SprintBoardView from "./pages/sprintPlanner/SprintBoardView";
 import ScrumStatsView from "./pages/sprintPlanner/ScrumStatsView";
 import PerformanceAnalyticsView from "./pages/sprintPlanner/PerformanceAnalyticsView";
+import AvailabilityView from "./pages/sprintPlanner/AvailabilityView";
 import TeamManagement from "./pages/TeamManagement";
 import BillingPage from "./pages/BillingPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -154,6 +155,7 @@ export default function App() {
           <Route path="board" element={<SprintBoardView />} />
           <Route path="stats" element={<ScrumStatsView />} />
           <Route path="performance" element={<PerformanceAnalyticsView />} />
+          <Route path="availability" element={<AvailabilityView />} />
         </Route>
         <Route path="admin/team" element={<TeamManagement />} />
         <Route path="billing" element={<BillingPage />} />

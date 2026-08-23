@@ -292,12 +292,19 @@ export const getSprintPlannerSettings = async (req, res) => {
       return res.status(400).json({ message: "companyId is required." });
     }
 
-    const company = await Company.findById(companyId).select("defaultSprintHours").lean();
+    const company = await Company.findById(companyId).select("defaultSprintHours workingHours").lean();
     if (!company) {
       return res.status(404).json({ message: "Company not found." });
     }
 
-    res.json({ defaultSprintHours: company.defaultSprintHours ?? 60 });
+    res.json({
+      defaultSprintHours: company.defaultSprintHours ?? 60,
+      workingHours: {
+        startHour: company.workingHours?.startHour ?? 9,
+        endHour: company.workingHours?.endHour ?? 17,
+        timezone: company.workingHours?.timezone || "Asia/Dhaka",
+      },
+    });
   } catch (error) {
     console.error("Get sprint planner settings error:", error);
     res.status(500).json({ message: "Failed to load settings." });
@@ -311,23 +318,46 @@ export const updateSprintPlannerSettings = async (req, res) => {
       return res.status(400).json({ message: "companyId is required." });
     }
 
-    const { defaultSprintHours } = req.body;
-    if (defaultSprintHours === undefined || Number(defaultSprintHours) < 0) {
-      return res.status(400).json({ message: "defaultSprintHours must be a non-negative number." });
+    const { defaultSprintHours, workingHours } = req.body;
+    const update = {};
+
+    if (defaultSprintHours !== undefined) {
+      if (Number(defaultSprintHours) < 0) {
+        return res.status(400).json({ message: "defaultSprintHours must be a non-negative number." });
+      }
+      update.defaultSprintHours = Number(defaultSprintHours);
     }
 
-    const company = await Company.findByIdAndUpdate(
-      companyId,
-      { $set: { defaultSprintHours: Number(defaultSprintHours) } },
-      { new: true },
-    )
-      .select("defaultSprintHours")
+    if (workingHours !== undefined) {
+      const { startHour, endHour, timezone } = workingHours;
+      if (
+        startHour === undefined || endHour === undefined ||
+        Number(startHour) < 0 || Number(startHour) > 23 ||
+        Number(endHour) < 1 || Number(endHour) > 24 ||
+        Number(startHour) >= Number(endHour)
+      ) {
+        return res.status(400).json({ message: "Working hours must be a valid start/end (start before end, 0–24)." });
+      }
+      update["workingHours.startHour"] = Number(startHour);
+      update["workingHours.endHour"] = Number(endHour);
+      update["workingHours.timezone"] = timezone?.trim() || "Asia/Dhaka";
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "Nothing to update." });
+    }
+
+    const company = await Company.findByIdAndUpdate(companyId, { $set: update }, { new: true })
+      .select("defaultSprintHours workingHours")
       .lean();
     if (!company) {
       return res.status(404).json({ message: "Company not found." });
     }
 
-    res.json({ defaultSprintHours: company.defaultSprintHours });
+    res.json({
+      defaultSprintHours: company.defaultSprintHours,
+      workingHours: company.workingHours,
+    });
   } catch (error) {
     console.error("Update sprint planner settings error:", error);
     res.status(500).json({ message: "Failed to update settings." });

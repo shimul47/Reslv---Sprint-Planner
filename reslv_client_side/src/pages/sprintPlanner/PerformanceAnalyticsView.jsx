@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import api from "../../api/axios";
-import { ChartCard, ChartTooltip, StatTile, CHART_COLORS, CHART_GRID } from "../../components/sprintPlanner/ChartPrimitives.jsx";
+import {
+  ChartCard,
+  ChartTooltip,
+  StatTile,
+  CHART_COLORS,
+  CHART_GRID,
+  STATUS_GOOD,
+  STATUS_CRITICAL,
+} from "../../components/sprintPlanner/ChartPrimitives.jsx";
 import HelpTip from "../../components/sprintPlanner/HelpTip.jsx";
 
 // Company-wide approximate-vs-actual hours, filterable by employee — the
@@ -28,6 +36,16 @@ export default function PerformanceAnalyticsView() {
     Approximate: e.approximateHours,
     Actual: e.actualHours,
   }));
+
+  // only show people who actually handed work around — no point drawing a
+  // row of two empty bars for someone who never diverted or picked up a task
+  const handoffData = (analytics?.byEmployee || [])
+    .filter((e) => e.pickedUpHours > 0 || e.divertedAwayHours > 0)
+    .map((e) => ({
+      name: e.name,
+      "Picked up from others": e.pickedUpHours || 0,
+      "Diverted away": e.divertedAwayHours || 0,
+    }));
 
   const totals = (analytics?.byEmployee || []).reduce(
     (acc, e) => ({
@@ -91,6 +109,30 @@ export default function PerformanceAnalyticsView() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="Approximate" fill={CHART_COLORS[0]} radius={[0, 6, 6, 0]} />
                   <Bar dataKey="Actual" fill={CHART_COLORS[1]} radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+
+          <ChartCard
+            title="Work Handed Around"
+            subtitle="Hours picked up from a teammate's task vs. hours diverted away to someone else"
+            height={Math.max(160, handoffData.length * 50)}
+          >
+            {handoffData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-[var(--text)] opacity-60">
+                No task handoffs yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={handoffData} layout="vertical" margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={CHART_GRID} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: "var(--text)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--text-h)" }} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--color-muted)" }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Picked up from others" fill={STATUS_GOOD} radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="Diverted away" fill={STATUS_CRITICAL} radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

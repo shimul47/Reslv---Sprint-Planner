@@ -55,6 +55,20 @@ const taskSchema = new mongoose.Schema(
     // Set exactly when status transitions to "done" — powers cycle-time
     // stats without guessing from updatedAt.
     doneAt: { type: Date, default: null },
+    // Who actually put hours into this task, and how many. Grows by one
+    // entry whenever someone hands the task off mid-work (their hours so
+    // far get banked here) and once more when the task is finished — so
+    // credit doesn't all land on whoever happened to finish it.
+    hoursLog: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        hours: { type: Number, required: true, min: 0 },
+      },
+    ],
+    // Other tasks (same sprint) that must be "done" before this one can be
+    // started — kept simple on purpose: no separate blocking-relationship
+    // model, just a list of task ids this one waits on.
+    dependsOn: [{ type: mongoose.Schema.Types.ObjectId, ref: "Task" }],
     position: { type: Number, default: 0 },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Circle, Clock, CheckCircle2, Plus } from "lucide-react";
+import { Circle, Clock, CheckCircle2, Plus, Lock } from "lucide-react";
 import api from "../../api/axios";
 import { useSprintPlanner } from "../../context/SprintPlannerContext.jsx";
 import SprintPublishBar from "../../components/sprintPlanner/SprintPublishBar.jsx";
@@ -149,6 +149,9 @@ export default function SprintBoardView() {
     moveTask(draggedId, laneId, targetStatus, null);
   };
 
+  // a task is blocked while any of its dependencies isn't done yet
+  const isBlocked = (task) => (task.dependsOn || []).some((d) => d.status !== "done");
+
   const tasksForLaneStatus = (laneId, status) =>
     tasks
       .filter((t) => (t.segmentId || null) === laneId && t.status === status)
@@ -251,6 +254,14 @@ export default function SprintBoardView() {
                                 <span className="text-[9px] font-bold bg-black/15 px-1.5 py-0.5 rounded-xs uppercase">
                                   {TASK_TYPE_LABELS[task.taskType] || task.taskType}
                                 </span>
+                                {col.id !== "done" && isBlocked(task) && (
+                                  <span
+                                    title="Waiting on another task to finish first"
+                                    className="flex items-center gap-0.5 text-[9px] font-bold bg-black/15 px-1.5 py-0.5 rounded-xs"
+                                  >
+                                    <Lock size={9} /> Blocked
+                                  </span>
+                                )}
                                 <span className="text-[9px] font-bold bg-black/15 px-1.5 py-0.5 rounded-xs">
                                   {task.status === "done" && task.actualHours != null
                                     ? `${task.actualHours}h actual`
@@ -298,6 +309,7 @@ export default function SprintBoardView() {
           task={openTask}
           employees={employees}
           segments={segments}
+          allTasks={tasks}
           onClose={() => setOpenTask(null)}
           onSaved={() => {
             setOpenTask(null);

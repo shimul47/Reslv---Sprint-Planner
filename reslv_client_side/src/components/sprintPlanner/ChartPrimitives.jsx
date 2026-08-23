@@ -15,6 +15,11 @@ export const CHART_COLORS = [
 export const CHART_IDEAL_COLOR = "#9898b8";
 export const CHART_GRID = "rgba(128,128,200,0.12)";
 
+// Fixed status colors — same everywhere, light or dark, never reused for a
+// regular data series. Green = good/gained, red = critical/lost.
+export const STATUS_GOOD = "#0ca30c";
+export const STATUS_CRITICAL = "#d03b3b";
+
 export function ChartCard({ title, subtitle, action, children, height = 260 }) {
   return (
     <div className="bg-[var(--color-card)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] p-4 sm:p-5 flex flex-col">

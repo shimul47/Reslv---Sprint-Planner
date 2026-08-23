@@ -20,6 +20,14 @@ const companySchema = new mongoose.Schema(
     // Sprint Planner settings. Every sprint uses this unless it has its own
     // override (see Sprint.capacityHoursOverride).
     defaultSprintHours: { type: Number, default: 60, min: 0 },
+    // The company's working day, in its own local time zone — drives the
+    // Availability tab's live free/busy/off-duty dot. Defaults to a 9-5 day
+    // in Dhaka, editable per company in Sprint Planner settings.
+    workingHours: {
+      startHour: { type: Number, default: 9, min: 0, max: 23 },
+      endHour: { type: Number, default: 17, min: 1, max: 24 },
+      timezone: { type: String, default: "Asia/Dhaka" },
+    },
   },
   { timestamps: true },
 );

@@ -10,12 +10,15 @@ const isOverseer = (user) => Boolean(user?.roles?.some((r) => OVERSEER_ROLES.inc
 // on someone else's behalf.
 export const createTaskRequest = async (req, res) => {
   try {
-    const { taskId, toUserId, message } = req.body;
+    const { taskId, toUserId, message, hoursSpent } = req.body;
     if (!taskId || !toUserId) {
       return res.status(400).json({ message: "taskId and toUserId are required." });
     }
     if (String(toUserId) === String(req.user.id)) {
       return res.status(400).json({ message: "Cannot request yourself." });
+    }
+    if (hoursSpent !== undefined && Number(hoursSpent) < 0) {
+      return res.status(400).json({ message: "hoursSpent can't be negative." });
     }
 
     const task = await Task.findById(taskId);
@@ -38,6 +41,7 @@ export const createTaskRequest = async (req, res) => {
       fromUserId: req.user.id,
       toUserId,
       message: message?.trim() || "",
+      hoursSpent: hoursSpent ? Number(hoursSpent) : 0,
     });
 
     res.status(201).json({ request });
@@ -111,6 +115,11 @@ export const resolveTaskRequest = async (req, res) => {
       return res.status(409).json({ message: "This task was reassigned before the request could be accepted." });
     }
 
+    // hand off the work, but keep the sender's hours as theirs — bank
+    // whatever they'd already logged before the task moves to someone new
+    if (request.hoursSpent > 0) {
+      task.hoursLog.push({ userId: request.fromUserId, hours: request.hoursSpent });
+    }
     task.assigneeId = request.toUserId;
     await task.save();
 

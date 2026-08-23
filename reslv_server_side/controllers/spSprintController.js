@@ -143,6 +143,7 @@ export const getSprintBoard = async (req, res) => {
     const tasks = await Task.find({ sprintId: sprint._id })
       .sort({ status: 1, position: 1 })
       .populate("assigneeId", "name email")
+      .populate("dependsOn", "title status")
       .lean();
 
     res.json({ sprint, tasks });

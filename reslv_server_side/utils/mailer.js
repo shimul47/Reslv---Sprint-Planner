@@ -152,6 +152,24 @@ export const sendSubscriptionUpdatedEmail = async (email, { plan, billingCycle, 
   });
 };
 
+// ---------------------------------------------------------------------
+// Sprint Planner
+// ---------------------------------------------------------------------
+export const sendCalendarNudgeEmail = async (email, { name, companyName }) => {
+  if (!email) return null;
+  const link = `${process.env.CLIENT_URL}/sprint-planner`;
+  return sendEmail({
+    to: email,
+    subject: `${companyName || "Your team"} would like you to connect Google Calendar`,
+    html: wrapper(`
+      <h2>Connect your calendar</h2>
+      <p>Hi ${name || "there"}, a sprint planner asked for a nudge — connecting your Google Calendar
+      lets them plan sprint capacity around your real availability instead of guessing.</p>
+      ${button(link, "Connect Google Calendar")}
+    `),
+  });
+};
+
 export const sendSubscriptionCanceledEmail = async (email) => {
   if (!email) return null;
   return sendEmail({
