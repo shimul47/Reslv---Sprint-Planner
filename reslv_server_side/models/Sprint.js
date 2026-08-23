@@ -17,8 +17,6 @@ const sprintSchema = new mongoose.Schema(
       enum: ["planning", "active", "closed"],
       default: "planning",
     },
-    // Unpublished sprints are only visible to admin/sprint_planner —
-    // employees can't see a sprint (or its tasks) until it's published.
     published: { type: Boolean, default: false },
     publishedAt: { type: Date, default: null },
     publishedBy: {
@@ -31,9 +29,6 @@ const sprintSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    // null = use Company.defaultSprintHours. Set to override every
-    // employee's capacity for just this one sprint — a fresh sprint always
-    // starts null (never inherits a prior sprint's override).
     capacityHoursOverride: { type: Number, default: null, min: 0 },
   },
   { timestamps: true },

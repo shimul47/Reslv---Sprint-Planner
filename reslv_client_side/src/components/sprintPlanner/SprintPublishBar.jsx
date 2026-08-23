@@ -54,7 +54,9 @@ export default function SprintPublishBar({
   };
 
   const openDateEditor = () => {
-    setStartDate(activeSprint?.startDate ? activeSprint.startDate.slice(0, 10) : "");
+    setStartDate(
+      activeSprint?.startDate ? activeSprint.startDate.slice(0, 10) : "",
+    );
     setEndDate(activeSprint?.endDate ? activeSprint.endDate.slice(0, 10) : "");
     setEditingDates(true);
   };
@@ -98,13 +100,6 @@ export default function SprintPublishBar({
         />
       </div>
 
-      <HelpTip title="Sprint Board">
-        Tasks are grouped into a swimlane per team — use each lane's "+ Task" button to add work
-        for that team. Drag a card between To Do / In Progress, or drop it on Done to record the
-        actual hours it took. A sprint stays a private draft — invisible to employees — until you
-        publish it.
-      </HelpTip>
-
       {activeSprint && (
         <span
           className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-[var(--radius-sm)] ${
@@ -113,7 +108,9 @@ export default function SprintPublishBar({
               : "bg-[var(--color-muted)] text-[var(--text)]"
           }`}
         >
-          {activeSprint.published ? "Published" : "Draft — hidden from employees"}
+          {activeSprint.published
+            ? "Published"
+            : "Draft — hidden from employees"}
         </span>
       )}
 
@@ -219,7 +216,9 @@ export default function SprintPublishBar({
         )}
       </div>
 
-      {error && <span className="text-[11px] text-red-500 w-full">{error}</span>}
+      {error && (
+        <span className="text-[11px] text-red-500 w-full">{error}</span>
+      )}
     </div>
   );
 }
