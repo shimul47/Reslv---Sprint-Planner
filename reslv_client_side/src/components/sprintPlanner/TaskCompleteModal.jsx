@@ -32,9 +32,12 @@ export default function TaskCompleteModal({ task, onClose, onCompleted }) {
         onSubmit={handleSubmit}
         className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-5 w-full max-w-sm shadow-xl flex flex-col gap-4 animate-fade-in"
       >
-        <h4 className="text-sm font-bold text-[var(--text-h)]">✅ Mark "{task.title}" Done</h4>
+        <h4 className="text-sm font-bold text-[var(--text-h)]">
+          Mark "{task.title}" Done
+        </h4>
         <p className="text-[11px] text-[var(--text)] opacity-70">
-          Approximate estimate was {task.approximateHours}h. How many hours did it actually take?
+          Approximate estimate was {task.approximateHours}h. How many hours did
+          it actually take?
         </p>
 
         <div>

@@ -16,7 +16,15 @@ const PRIORITIES = [
 // Overseer-only content editor, opened from the sprint board. Status only
 // changes via drag-and-drop / the Done button on the board itself — this
 // modal edits everything else, including reassignment and deletion.
-export default function TaskEditModal({ task, employees, segments, allTasks, onClose, onSaved, onDeleted }) {
+export default function TaskEditModal({
+  task,
+  employees,
+  segments,
+  allTasks,
+  onClose,
+  onSaved,
+  onDeleted,
+}) {
   const originalAssigneeId = task.assigneeId?._id || task.assigneeId || "";
 
   const [form, setForm] = useState({
@@ -34,7 +42,9 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
   // itself, and not a task that already depends on this one (the server
   // rejects that too, but catching it here saves a round trip)
   const dependencyOptions = (allTasks || []).filter(
-    (t) => t._id !== task._id && !(t.dependsOn || []).some((d) => (d._id || d) === task._id),
+    (t) =>
+      t._id !== task._id &&
+      !(t.dependsOn || []).some((d) => (d._id || d) === task._id),
   );
 
   const toggleDependency = (taskId) => {
@@ -49,7 +59,8 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
-  const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const update = (field, value) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
 
   const filterBySegment = (list, forSegmentId) =>
     (list || []).filter((e) => !forSegmentId || e.segmentId === forSegmentId);
@@ -60,7 +71,9 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
     setForm((prev) => ({
       ...prev,
       segmentId: value,
-      assigneeId: filterBySegment(employees, value).some((e) => e.userId === prev.assigneeId)
+      assigneeId: filterBySegment(employees, value).some(
+        (e) => e.userId === prev.assigneeId,
+      )
         ? prev.assigneeId
         : "",
     }));
@@ -73,10 +86,15 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
   const selectedEmployee = employees?.find((e) => e.userId === form.assigneeId);
   const baselineRemaining =
     selectedEmployee != null
-      ? selectedEmployee.remainingHours + (form.assigneeId === originalAssigneeId ? task.approximateHours || 0 : 0)
+      ? selectedEmployee.remainingHours +
+        (form.assigneeId === originalAssigneeId
+          ? task.approximateHours || 0
+          : 0)
       : null;
   const liveRemaining =
-    baselineRemaining != null ? baselineRemaining - Number(form.approximateHours || 0) : null;
+    baselineRemaining != null
+      ? baselineRemaining - Number(form.approximateHours || 0)
+      : null;
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -102,7 +120,8 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`))
+      return;
     setDeleting(true);
     setError("");
     try {
@@ -223,12 +242,14 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
                 <option value="">Unassigned</option>
                 {assignableEmployees.map((emp) => (
                   <option key={emp.userId} value={emp.userId}>
-                    {emp.name} — {emp.remainingHours}h left
+                    {emp.name} ({emp.remainingHours}h left)
                   </option>
                 ))}
               </select>
               {form.segmentId && assignableEmployees.length === 0 && (
-                <p className="text-[10px] text-amber-600 mt-1">No one is in this team yet.</p>
+                <p className="text-[10px] text-amber-600 mt-1">
+                  No one is in this team yet.
+                </p>
               )}
             </div>
           </div>
@@ -238,11 +259,16 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
               Depends on (optional)
             </label>
             {dependencyOptions.length === 0 ? (
-              <p className="text-[11px] opacity-60">No other tasks in this sprint yet.</p>
+              <p className="text-[11px] opacity-60">
+                No other tasks in this sprint yet.
+              </p>
             ) : (
               <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto border border-[var(--color-border)] rounded p-2">
                 {dependencyOptions.map((t) => (
-                  <label key={t._id} className="flex items-center gap-2 text-[11px] cursor-pointer">
+                  <label
+                    key={t._id}
+                    className="flex items-center gap-2 text-[11px] cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       checked={form.dependsOn.includes(t._id)}
@@ -250,7 +276,9 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
                     />
                     <span className="truncate">{t.title}</span>
                     {t.status !== "done" && (
-                      <span className="text-[9px] opacity-60 flex-shrink-0">(not done yet)</span>
+                      <span className="text-[9px] opacity-60 flex-shrink-0">
+                        (not done yet)
+                      </span>
                     )}
                   </label>
                 ))}
@@ -262,8 +290,11 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
           </div>
 
           {selectedEmployee && (
-            <p className={`text-[11px] -mt-2 ${liveRemaining < 0 ? "text-red-500 font-semibold" : "text-[var(--text)] opacity-70"}`}>
-              {selectedEmployee.name} will have {liveRemaining}h left in this sprint after this task.
+            <p
+              className={`text-[11px] -mt-2 ${liveRemaining < 0 ? "text-red-500 font-semibold" : "text-[var(--text)] opacity-70"}`}
+            >
+              {selectedEmployee.name} will have {liveRemaining}h left in this
+              sprint after this task.
             </p>
           )}
 
@@ -274,7 +305,11 @@ export default function TaskEditModal({ task, employees, segments, allTasks, onC
               type="button"
               onClick={handleDelete}
               disabled={task.status === "done" || deleting || saving}
-              title={task.status === "done" ? "A completed task can't be deleted." : undefined}
+              title={
+                task.status === "done"
+                  ? "A completed task can't be deleted."
+                  : undefined
+              }
               className="text-[11px] font-medium text-red-500 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
             >
               {deleting ? "Deleting…" : "Delete task"}
