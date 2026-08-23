@@ -9,6 +9,7 @@ const TABS = [
   { id: "board", label: "Sprint Board", path: "board" },
   { id: "stats", label: "Stats", path: "stats" },
   { id: "performance", label: "Performance", path: "performance" },
+  { id: "availability", label: "Availability", path: "availability" },
 ];
 
 function SprintPlannerShell() {
@@ -44,6 +45,9 @@ function SprintPlannerShell() {
             "Attempt" to start one, then "Mark Done" and enter the hours it actually took. You can
             also divert a task to a teammate if someone else should take it.
           </HelpTip>
+        </div>
+        <div className="px-6 pt-3">
+          <GoogleCalendarConnect />
         </div>
         <div className="flex-1 overflow-y-auto">
           <MyTasksView />

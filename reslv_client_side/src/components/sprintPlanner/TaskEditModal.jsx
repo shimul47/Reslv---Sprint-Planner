@@ -16,7 +16,7 @@ const PRIORITIES = [
 // Overseer-only content editor, opened from the sprint board. Status only
 // changes via drag-and-drop / the Done button on the board itself — this
 // modal edits everything else, including reassignment and deletion.
-export default function TaskEditModal({ task, employees, segments, onClose, onSaved, onDeleted }) {
+export default function TaskEditModal({ task, employees, segments, allTasks, onClose, onSaved, onDeleted }) {
   const originalAssigneeId = task.assigneeId?._id || task.assigneeId || "";
 
   const [form, setForm] = useState({
@@ -27,7 +27,24 @@ export default function TaskEditModal({ task, employees, segments, onClose, onSa
     segmentId: task.segmentId || "",
     assigneeId: originalAssigneeId,
     approximateHours: task.approximateHours ?? "",
+    dependsOn: (task.dependsOn || []).map((d) => d._id || d),
   });
+
+  // any other task in this sprint can be picked as a dependency — just not
+  // itself, and not a task that already depends on this one (the server
+  // rejects that too, but catching it here saves a round trip)
+  const dependencyOptions = (allTasks || []).filter(
+    (t) => t._id !== task._id && !(t.dependsOn || []).some((d) => (d._id || d) === task._id),
+  );
+
+  const toggleDependency = (taskId) => {
+    setForm((prev) => ({
+      ...prev,
+      dependsOn: prev.dependsOn.includes(taskId)
+        ? prev.dependsOn.filter((id) => id !== taskId)
+        : [...prev.dependsOn, taskId],
+    }));
+  };
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -74,6 +91,7 @@ export default function TaskEditModal({ task, employees, segments, onClose, onSa
         assigneeId: form.assigneeId || null,
         segmentId: form.segmentId || null,
         approximateHours: Number(form.approximateHours),
+        dependsOn: form.dependsOn,
       });
       onSaved();
     } catch (err) {
@@ -213,6 +231,34 @@ export default function TaskEditModal({ task, employees, segments, onClose, onSa
                 <p className="text-[10px] text-amber-600 mt-1">No one is in this team yet.</p>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--text)] uppercase tracking-wider mb-1">
+              Depends on (optional)
+            </label>
+            {dependencyOptions.length === 0 ? (
+              <p className="text-[11px] opacity-60">No other tasks in this sprint yet.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto border border-[var(--color-border)] rounded p-2">
+                {dependencyOptions.map((t) => (
+                  <label key={t._id} className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.dependsOn.includes(t._id)}
+                      onChange={() => toggleDependency(t._id)}
+                    />
+                    <span className="truncate">{t.title}</span>
+                    {t.status !== "done" && (
+                      <span className="text-[9px] opacity-60 flex-shrink-0">(not done yet)</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-[var(--text)] opacity-60 mt-1">
+              This task can't be started until everything checked here is done.
+            </p>
           </div>
 
           {selectedEmployee && (

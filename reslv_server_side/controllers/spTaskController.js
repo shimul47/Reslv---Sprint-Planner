@@ -8,6 +8,33 @@ import { resolveCompanyId } from "../utils/companyScope.js";
 const OVERSEER_ROLES = ["admin", "superadmin", "sprint_planner"];
 const isOverseer = (user) => Boolean(user?.roles?.some((r) => OVERSEER_ROLES.includes(r)));
 
+// Checks the chosen dependency ids are real tasks in the same sprint, drops
+// duplicates and a self-reference, and blocks the one-step cycle (picking a
+// task that already depends on this one). Doesn't chase deeper cycles —
+// simple on purpose.
+async function cleanDependsOn(rawIds, sprintId, taskId) {
+  if (!rawIds || rawIds.length === 0) return [];
+  const ids = [...new Set(rawIds.map(String))].filter((id) => id !== String(taskId || ""));
+  if (ids.length === 0) return [];
+
+  const found = await Task.find({ _id: { $in: ids }, sprintId }).select("dependsOn").lean();
+  if (found.length !== ids.length) {
+    throw Object.assign(new Error("A dependency task wasn't found in this sprint."), { status: 400 });
+  }
+  const wouldCycle = found.some((t) => (t.dependsOn || []).some((d) => String(d) === String(taskId)));
+  if (wouldCycle) {
+    throw Object.assign(new Error("That would make two tasks depend on each other."), { status: 400 });
+  }
+  return ids;
+}
+
+// True if any task this one depends on isn't done yet.
+async function isBlocked(task) {
+  if (!task.dependsOn?.length) return false;
+  const openCount = await Task.countDocuments({ _id: { $in: task.dependsOn }, status: { $ne: "done" } });
+  return openCount > 0;
+}
+
 // Route is gated to OVERSEER_ROLES in routes/sprintPlanner.js.
 export const createTask = async (req, res) => {
   try {
@@ -21,12 +48,19 @@ export const createTask = async (req, res) => {
       return res.status(404).json({ message: "Sprint not found." });
     }
 
-    const { title, description, taskType, priority, approximateHours, assigneeId, segmentId } = req.body;
+    const { title, description, taskType, priority, approximateHours, assigneeId, segmentId, dependsOn } = req.body;
     if (!title?.trim()) {
       return res.status(400).json({ message: "Title is required." });
     }
     if (approximateHours === undefined || approximateHours === null || Number(approximateHours) < 0) {
       return res.status(400).json({ message: "approximateHours is required." });
+    }
+
+    let cleanedDependsOn = [];
+    try {
+      cleanedDependsOn = await cleanDependsOn(dependsOn, sprint._id, null);
+    } catch (err) {
+      return res.status(err.status || 400).json({ message: err.message });
     }
 
     const count = await Task.countDocuments({ sprintId: sprint._id, status: "todo" });
@@ -40,6 +74,7 @@ export const createTask = async (req, res) => {
       assigneeId: assigneeId || null,
       segmentId: segmentId || null,
       approximateHours: Number(approximateHours),
+      dependsOn: cleanedDependsOn,
       position: count,
       createdBy: req.user.id,
     });
@@ -66,9 +101,20 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ message: "Task not found." });
     }
 
+    if (req.body.dependsOn !== undefined) {
+      try {
+        task.dependsOn = await cleanDependsOn(req.body.dependsOn, task.sprintId, task._id);
+      } catch (err) {
+        return res.status(err.status || 400).json({ message: err.message });
+      }
+    }
+
     if (req.body.status !== undefined) {
       if (!["todo", "in_progress"].includes(req.body.status)) {
         return res.status(400).json({ message: "Use the complete endpoint to mark a task done." });
+      }
+      if (req.body.status === "in_progress" && task.status !== "in_progress" && (await isBlocked(task))) {
+        return res.status(409).json({ message: "This task is blocked until its dependencies are done." });
       }
       task.status = req.body.status;
       if (req.body.status === "in_progress" && !task.startedAt) task.startedAt = new Date();
@@ -141,6 +187,7 @@ export const listMyTasks = async (req, res) => {
       sprintId: currentSprint._id,
     })
       .sort({ status: 1, updatedAt: -1 })
+      .populate("dependsOn", "title status")
       .lean();
 
     const withSprint = tasks.map((task) => ({ ...task, sprint: currentSprint }));
@@ -216,6 +263,9 @@ export const attemptTask = async (req, res) => {
     if (task.status !== "todo") {
       return res.status(409).json({ message: "This task has already been started." });
     }
+    if (await isBlocked(task)) {
+      return res.status(409).json({ message: "This task is blocked until its dependencies are done." });
+    }
 
     const sprint = await Sprint.findById(task.sprintId).select("published").lean();
     if (!sprint?.published) {
@@ -253,9 +303,14 @@ export const completeTask = async (req, res) => {
       return res.status(400).json({ message: "actualHours is required." });
     }
 
+    // log this person's own hours, then actualHours becomes the total of
+    // everyone who touched the task — the finisher isn't the only one credited
+    if (task.assigneeId) {
+      task.hoursLog.push({ userId: task.assigneeId, hours: Number(actualHours) });
+    }
+    task.actualHours = task.hoursLog.reduce((sum, entry) => sum + entry.hours, 0) || Number(actualHours);
     task.status = "done";
     task.doneAt = new Date();
-    task.actualHours = Number(actualHours);
     await task.save();
 
     res.json({ task });

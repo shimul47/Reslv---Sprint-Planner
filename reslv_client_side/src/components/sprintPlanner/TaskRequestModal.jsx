@@ -3,12 +3,13 @@ import api from "../../api/axios";
 
 // Lets a task's current assignee divert it to another employee in the
 // company — "employee can divert his own task request to other employee."
-// If accepted, Task.assigneeId moves to them and sprint-hour allocation
-// follows automatically (derived live, no separate bookkeeping).
+// If accepted, Task.assigneeId moves to them, and any hours already spent
+// stay credited to the sender instead of getting swallowed by the handoff.
 export default function TaskRequestModal({ task, currentUserId, onClose, onSent }) {
   const [employees, setEmployees] = useState([]);
   const [toUserId, setToUserId] = useState("");
   const [message, setMessage] = useState("");
+  const [hoursSpent, setHoursSpent] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,6 +32,7 @@ export default function TaskRequestModal({ task, currentUserId, onClose, onSent 
         taskId: task._id,
         toUserId,
         message: message.trim(),
+        hoursSpent: hoursSpent === "" ? 0 : Number(hoursSpent),
       });
       onSent();
     } catch (err) {
@@ -68,6 +70,24 @@ export default function TaskRequestModal({ task, currentUserId, onClose, onSent 
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold text-[var(--text)] uppercase tracking-wider mb-1">
+            Hours already spent (optional)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            placeholder="0"
+            value={hoursSpent}
+            onChange={(e) => setHoursSpent(e.target.value)}
+            className="w-full text-xs text-[var(--color-foreground)] bg-[var(--color-input-background)] border border-[var(--color-border)] rounded p-2 focus:outline-hidden"
+          />
+          <p className="text-[10px] text-[var(--text)] opacity-60 mt-1">
+            These hours stay credited to you — only what's left moves with the task.
+          </p>
         </div>
 
         <div>

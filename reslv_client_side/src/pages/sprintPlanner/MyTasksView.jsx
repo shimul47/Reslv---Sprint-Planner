@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useState } from "react";
-import { RefreshCw, Circle, Clock, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Circle, Clock, CheckCircle2, Lock } from "lucide-react";
 import api from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import TaskCompleteModal from "../../components/sprintPlanner/TaskCompleteModal.jsx";
@@ -80,6 +80,9 @@ export default function MyTasksView() {
     }
   };
 
+  // a task is blocked while any of its dependencies isn't done yet
+  const isBlocked = (task) => (task.dependsOn || []).some((d) => d.status !== "done");
+
   const incoming = requests.filter(
     (r) => String(r.toUserId?._id || r.toUserId) === String(user?.id) && r.status === "pending",
   );
@@ -114,6 +117,9 @@ export default function MyTasksView() {
               <div>
                 <span className="font-semibold text-[var(--text-h)]">{r.fromUserId?.name}</span>{" "}
                 wants to hand off "{r.taskId?.title}"
+                {r.hoursSpent > 0 && (
+                  <span className="opacity-70"> ({r.hoursSpent}h already logged by them)</span>
+                )}
                 {r.message && <p className="text-[11px] opacity-70 mt-0.5">"{r.message}"</p>}
               </div>
               <div className="flex gap-2 flex-shrink-0">
@@ -181,14 +187,27 @@ export default function MyTasksView() {
                               ? `${task.actualHours}h actual`
                               : `${task.approximateHours}h approx`}
                           </span>
+                          {task.status === "todo" && isBlocked(task) && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-bold bg-black/15 px-1.5 py-0.5 rounded-xs">
+                              <Lock size={9} /> Blocked
+                            </span>
+                          )}
                         </div>
+
+                        {task.status === "todo" && isBlocked(task) && (
+                          <p className="text-[10px] opacity-70 mb-2 relative z-10">
+                            Waiting on: {task.dependsOn.filter((d) => d.status !== "done").map((d) => d.title).join(", ")}
+                          </p>
+                        )}
 
                         <div className="flex items-center gap-2 relative z-10">
                           {task.status === "todo" && (
                             <>
                               <button
                                 onClick={() => handleAttempt(task)}
-                                className="bg-black/15 hover:bg-black/25 text-[10px] font-bold px-2 py-1 rounded cursor-pointer"
+                                disabled={isBlocked(task)}
+                                title={isBlocked(task) ? "Finish its dependencies first" : undefined}
+                                className="bg-black/15 hover:bg-black/25 text-[10px] font-bold px-2 py-1 rounded cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-black/15"
                               >
                                 Attempt
                               </button>

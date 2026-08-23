@@ -17,6 +17,9 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
   const [sprintOverride, setSprintOverride] = useState("");
   const [savingSprintOverride, setSavingSprintOverride] = useState(false);
 
+  const [workingHours, setWorkingHours] = useState({ startHour: 9, endHour: 17, timezone: "Asia/Dhaka" });
+  const [savingWorkingHours, setSavingWorkingHours] = useState(false);
+
   const params = companyId ? { companyId } : {};
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
     ])
       .then(([settingsRes, sprintsRes]) => {
         setDefaultSprintHours(String(settingsRes.data.defaultSprintHours ?? 60));
+        if (settingsRes.data.workingHours) setWorkingHours(settingsRes.data.workingHours);
         const list = sprintsRes.data.sprints || [];
         setSprints(list);
         setSelectedSprintId((current) => (list.some((s) => s._id === current) ? current : list[0]?._id || ""));
@@ -58,6 +62,31 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
       setError(err.response?.data?.message || "Failed to save.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveWorkingHours = async (e) => {
+    e.preventDefault();
+    if (Number(workingHours.startHour) >= Number(workingHours.endHour)) return;
+    setSavingWorkingHours(true);
+    setError("");
+    try {
+      const res = await api.patch(
+        "/team/sprint-planner-settings",
+        {
+          workingHours: {
+            startHour: Number(workingHours.startHour),
+            endHour: Number(workingHours.endHour),
+            timezone: workingHours.timezone.trim() || "Asia/Dhaka",
+          },
+        },
+        { params },
+      );
+      if (res.data.workingHours) setWorkingHours(res.data.workingHours);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save working hours.");
+    } finally {
+      setSavingWorkingHours(false);
     }
   };
 
@@ -179,6 +208,51 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
                 </div>
               )}
             </div>
+
+            <form onSubmit={saveWorkingHours} className="flex flex-col items-center gap-2 pt-2 border-t border-[var(--color-border)]">
+              <p className="text-sm font-medium opacity-70">Working hours</p>
+              <p className="text-xs opacity-60 text-center max-w-xs">
+                Drives the live Free/Busy/Off-duty dot on the Availability tab.
+              </p>
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <select
+                  value={workingHours.startHour}
+                  onChange={(e) => setWorkingHours((prev) => ({ ...prev, startHour: Number(e.target.value) }))}
+                  className="bg-[var(--background)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-2 py-1.5 text-sm focus:outline-none focus:border-[var(--color-primary)]"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>{`${h}:00`}</option>
+                  ))}
+                </select>
+                <span className="text-sm opacity-60">to</span>
+                <select
+                  value={workingHours.endHour}
+                  onChange={(e) => setWorkingHours((prev) => ({ ...prev, endHour: Number(e.target.value) }))}
+                  className="bg-[var(--background)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-2 py-1.5 text-sm focus:outline-none focus:border-[var(--color-primary)]"
+                >
+                  {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
+                    <option key={h} value={h}>{`${h}:00`}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={workingHours.timezone}
+                  onChange={(e) => setWorkingHours((prev) => ({ ...prev, timezone: e.target.value }))}
+                  placeholder="Asia/Dhaka"
+                  className="w-36 bg-[var(--background)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-2 py-1.5 text-sm focus:outline-none focus:border-[var(--color-primary)]"
+                />
+                <button
+                  type="submit"
+                  disabled={savingWorkingHours || Number(workingHours.startHour) >= Number(workingHours.endHour)}
+                  className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium hover:opacity-90 disabled:opacity-60 cursor-pointer"
+                >
+                  {savingWorkingHours ? "Saving…" : "Save"}
+                </button>
+              </div>
+              {Number(workingHours.startHour) >= Number(workingHours.endHour) && (
+                <p className="text-xs text-red-500">Start must be before end.</p>
+              )}
+            </form>
           </div>
         )}
       </div>
