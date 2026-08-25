@@ -3,8 +3,10 @@ import User from "../models/User.js";
 import Invite from "../models/Invite.js";
 import Company from "../models/Company.js";
 import Subscription from "../models/Subscription.js";
+import Segment from "../models/Segment.js";
 import { sendInviteEmail } from "../utils/mailer.js";
 import { getCompanyPlan, companyHasFeature } from "../utils/planAccess.js";
+import { resolveCompanyId } from "../utils/companyScope.js";
 
 const PRIVILEGED_ROLES = ["admin", "superadmin"];
 
@@ -53,6 +55,7 @@ export const getTeamMembers = async (req, res) => {
         roles: user.roles || [],
         status: "Active",
         inviteLimit: user.inviteLimit || 5,
+        segmentId: user.segmentId ?? null,
       }));
 
     const formattedInvites = invites.map((invite) => {
@@ -280,27 +283,28 @@ export const revokeInvite = async (req, res) => {
   }
 };
 
-// ── Sprint Planner Administration permissions ───────────────────────────────
-// A superadmin has no companyId of their own, so they must target a company
-// explicitly via ?companyId= — mirrors how they scope /superadmin/init.
-function resolveSettingsCompanyId(req) {
-  const isSuperAdmin = req.user.roles?.includes("superadmin");
-  return isSuperAdmin ? req.query.companyId || null : req.user.companyId;
-}
+// ── Sprint Planner Administration: capacity settings ────────────────────────
 
 export const getSprintPlannerSettings = async (req, res) => {
   try {
-    const companyId = resolveSettingsCompanyId(req);
+    const companyId = resolveCompanyId(req);
     if (!companyId) {
       return res.status(400).json({ message: "companyId is required." });
     }
 
-    const company = await Company.findById(companyId).select("sprintPlannerSettings").lean();
+    const company = await Company.findById(companyId).select("defaultSprintHours workingHours").lean();
     if (!company) {
       return res.status(404).json({ message: "Company not found." });
     }
 
-    res.json({ settings: company.sprintPlannerSettings || {} });
+    res.json({
+      defaultSprintHours: company.defaultSprintHours ?? 60,
+      workingHours: {
+        startHour: company.workingHours?.startHour ?? 9,
+        endHour: company.workingHours?.endHour ?? 17,
+        timezone: company.workingHours?.timezone || "Asia/Dhaka",
+      },
+    });
   } catch (error) {
     console.error("Get sprint planner settings error:", error);
     res.status(500).json({ message: "Failed to load settings." });
@@ -309,33 +313,85 @@ export const getSprintPlannerSettings = async (req, res) => {
 
 export const updateSprintPlannerSettings = async (req, res) => {
   try {
-    const companyId = resolveSettingsCompanyId(req);
+    const companyId = resolveCompanyId(req);
     if (!companyId) {
       return res.status(400).json({ message: "companyId is required." });
     }
 
-    const { employeesCanCreateTasks, employeesCanEditBacklog, employeesCanPublishSprints } = req.body;
+    const { defaultSprintHours, workingHours } = req.body;
     const update = {};
-    if (employeesCanCreateTasks !== undefined) {
-      update["sprintPlannerSettings.employeesCanCreateTasks"] = Boolean(employeesCanCreateTasks);
+
+    if (defaultSprintHours !== undefined) {
+      if (Number(defaultSprintHours) < 0) {
+        return res.status(400).json({ message: "defaultSprintHours must be a non-negative number." });
+      }
+      update.defaultSprintHours = Number(defaultSprintHours);
     }
-    if (employeesCanEditBacklog !== undefined) {
-      update["sprintPlannerSettings.employeesCanEditBacklog"] = Boolean(employeesCanEditBacklog);
+
+    if (workingHours !== undefined) {
+      const { startHour, endHour, timezone } = workingHours;
+      if (
+        startHour === undefined || endHour === undefined ||
+        Number(startHour) < 0 || Number(startHour) > 23 ||
+        Number(endHour) < 1 || Number(endHour) > 24 ||
+        Number(startHour) >= Number(endHour)
+      ) {
+        return res.status(400).json({ message: "Working hours must be a valid start/end (start before end, 0–24)." });
+      }
+      update["workingHours.startHour"] = Number(startHour);
+      update["workingHours.endHour"] = Number(endHour);
+      update["workingHours.timezone"] = timezone?.trim() || "Asia/Dhaka";
     }
-    if (employeesCanPublishSprints !== undefined) {
-      update["sprintPlannerSettings.employeesCanPublishSprints"] = Boolean(employeesCanPublishSprints);
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "Nothing to update." });
     }
 
     const company = await Company.findByIdAndUpdate(companyId, { $set: update }, { new: true })
-      .select("sprintPlannerSettings")
+      .select("defaultSprintHours workingHours")
       .lean();
     if (!company) {
       return res.status(404).json({ message: "Company not found." });
     }
 
-    res.json({ settings: company.sprintPlannerSettings || {} });
+    res.json({
+      defaultSprintHours: company.defaultSprintHours,
+      workingHours: company.workingHours,
+    });
   } catch (error) {
     console.error("Update sprint planner settings error:", error);
     res.status(500).json({ message: "Failed to update settings." });
+  }
+};
+
+// Assigns an employee to a team/department segment — null clears it
+// (unassigned). Segment must belong to the same company being managed.
+export const updateMemberSegment = async (req, res) => {
+  try {
+    const { segmentId } = req.body;
+
+    const isSuperAdmin = req.user.roles?.includes("superadmin");
+    const target = await User.findById(req.params.userId);
+    if (!target) {
+      return res.status(404).json({ message: "Team member not found." });
+    }
+    if (!isSuperAdmin && String(target.companyId) !== String(req.user.companyId)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    if (segmentId) {
+      const segment = await Segment.findOne({ _id: segmentId, companyId: target.companyId }).lean();
+      if (!segment) {
+        return res.status(404).json({ message: "Segment not found." });
+      }
+    }
+
+    target.segmentId = segmentId || null;
+    await target.save();
+
+    res.json({ id: target._id, segmentId: target.segmentId });
+  } catch (error) {
+    console.error("Update member segment error:", error);
+    res.status(500).json({ message: "Failed to update segment." });
   }
 };

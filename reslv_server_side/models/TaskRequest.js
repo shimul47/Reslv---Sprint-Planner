@@ -8,9 +8,9 @@ const taskRequestSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    projectId: {
+    sprintId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
+      ref: "Sprint",
       required: true,
       index: true,
     },
@@ -32,6 +32,10 @@ const taskRequestSchema = new mongoose.Schema(
       index: true,
     },
     message: { type: String, default: "", trim: true },
+    // Hours the sender already put in before asking for a handoff — 0 if
+    // they hadn't started yet. Gets moved onto the task's hoursLog once
+    // this request is accepted, so those hours stay theirs.
+    hoursSpent: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: ["pending", "accepted", "declined", "cancelled"],

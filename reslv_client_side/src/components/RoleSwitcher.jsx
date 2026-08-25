@@ -35,7 +35,11 @@ export default function RoleSwitcher({ className = "" }) {
   const handlePick = (role) => {
     setActiveRole(role);
     setOpen(false);
-    navigate(roleLandingPath([role]));
+    // replace, not push — every other auth-driven redirect in this app
+    // (login, RequireAuth's role-mismatch bounce) replaces too, so a role
+    // switch doesn't leave the old dashboard sitting in history for the
+    // browser's Back button to resurface.
+    navigate(roleLandingPath([role]), { replace: true });
   };
 
   return (

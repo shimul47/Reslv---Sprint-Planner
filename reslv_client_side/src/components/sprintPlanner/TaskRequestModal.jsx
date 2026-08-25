@@ -1,20 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../api/axios";
-import { useSprintPlanner } from "../../context/SprintPlannerContext.jsx";
 
-// Lets a task's current assignee hand it off / ask another teammate on the
-// project to take it over — "employee can pass a request to another
-// employee of the company."
-export default function TaskRequestModal({ task, projectMembers, currentUserId, onClose, onSent }) {
-  const { activeProject } = useSprintPlanner();
+// Lets a task's current assignee divert it to another employee in the
+// company — "employee can divert his own task request to other employee."
+// If accepted, Task.assigneeId moves to them, and any hours already spent
+// stay credited to the sender instead of getting swallowed by the handoff.
+export default function TaskRequestModal({ task, currentUserId, onClose, onSent }) {
+  const [employees, setEmployees] = useState([]);
   const [toUserId, setToUserId] = useState("");
   const [message, setMessage] = useState("");
+  const [hoursSpent, setHoursSpent] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
-  const teammates = (projectMembers || []).filter(
-    (m) => String(m.userId?._id || m.userId) !== String(currentUserId),
-  );
+  useEffect(() => {
+    api
+      .get(`/sprint-planner/tasks/${task._id}/capacity`)
+      .then((res) => setEmployees(res.data.employees || []))
+      .catch(() => setEmployees([]));
+  }, [task._id]);
+
+  const teammates = employees.filter((e) => String(e.userId) !== String(currentUserId));
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -22,10 +28,12 @@ export default function TaskRequestModal({ task, projectMembers, currentUserId, 
     setSending(true);
     setError("");
     try {
-      await api.post(
-        `/sprint-planner/projects/${activeProject._id}/tasks/${task._id}/requests`,
-        { toUserId, message: message.trim() },
-      );
+      await api.post("/sprint-planner/task-requests", {
+        taskId: task._id,
+        toUserId,
+        message: message.trim(),
+        hoursSpent: hoursSpent === "" ? 0 : Number(hoursSpent),
+      });
       onSent();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to send request.");
@@ -40,9 +48,9 @@ export default function TaskRequestModal({ task, projectMembers, currentUserId, 
         onSubmit={handleSend}
         className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-5 w-full max-w-sm shadow-xl flex flex-col gap-4 animate-fade-in"
       >
-        <h4 className="text-sm font-bold text-[var(--text-h)]">🤝 Request Help / Hand Off</h4>
+        <h4 className="text-sm font-bold text-[var(--text-h)]">🤝 Divert Task</h4>
         <p className="text-[11px] text-[var(--text)] opacity-70">
-          Ask a teammate on this project to take over "{task.title}".
+          Ask a teammate to take over "{task.title}".
         </p>
 
         <div>
@@ -57,11 +65,29 @@ export default function TaskRequestModal({ task, projectMembers, currentUserId, 
           >
             <option value="">Select a teammate…</option>
             {teammates.map((m) => (
-              <option key={m.userId?._id || m.userId} value={m.userId?._id || m.userId}>
-                {m.userId?.name || "Unknown"} {m.title ? `— ${m.title}` : ""}
+              <option key={m.userId} value={m.userId}>
+                {m.name} — {m.remainingHours}h left
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold text-[var(--text)] uppercase tracking-wider mb-1">
+            Hours already spent (optional)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            placeholder="0"
+            value={hoursSpent}
+            onChange={(e) => setHoursSpent(e.target.value)}
+            className="w-full text-xs text-[var(--color-foreground)] bg-[var(--color-input-background)] border border-[var(--color-border)] rounded p-2 focus:outline-hidden"
+          />
+          <p className="text-[10px] text-[var(--text)] opacity-60 mt-1">
+            These hours stay credited to you — only what's left moves with the task.
+          </p>
         </div>
 
         <div>

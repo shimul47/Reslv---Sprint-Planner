@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext.jsx";
 import { ROLE_OPTIONS, roleLabel } from "../data/roles.js";
-import SprintPlannerPermissionsPanel from "../components/sprintPlanner/SprintPlannerPermissionsPanel.jsx";
+import SprintPlannerCapacityPanel from "../components/sprintPlanner/SprintPlannerCapacityPanel.jsx";
+import SegmentsPanel from "../components/sprintPlanner/SegmentsPanel.jsx";
 
 const SUPERADMIN_COMPANY_SCOPE_KEY = "reslv.superadmin.companyScope";
 
@@ -15,6 +16,7 @@ export default function TeamManagement() {
 
   const [team, setTeam] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [segments, setSegments] = useState([]);
   const [inviteLimit, setInviteLimit] = useState(5);
   const [inviteUsage, setInviteUsage] = useState(0);
 
@@ -37,6 +39,21 @@ export default function TeamManagement() {
   const assignableRoles = isSuperAdmin
     ? ROLE_OPTIONS
     : ROLE_OPTIONS.filter((r) => r.id !== "admin");
+
+  // Re-fetches just the team list (roles, segments, etc.) without touching
+  // the superadmin company-scope selector — used both on mount and any time
+  // a member's segment changes from a place other than the table itself
+  // (e.g. saving a segment's member checklist).
+  const refreshTeam = useCallback(async () => {
+    try {
+      const res = await api.get("/team");
+      setTeam(res.data.team);
+      setInviteLimit(res.data.inviteLimit === undefined ? 5 : res.data.inviteLimit);
+      setInviteUsage(res.data.inviteUsage ?? 0);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -74,6 +91,22 @@ export default function TeamManagement() {
 
     fetchTeam();
   }, [isSuperAdmin]);
+
+  const fetchSegments = useCallback(async () => {
+    if (isSuperAdmin && !inviteCompanyId) return;
+    try {
+      const res = await api.get("/segments", {
+        params: isSuperAdmin ? { companyId: inviteCompanyId } : {},
+      });
+      setSegments(res.data.segments || []);
+    } catch {
+      // Non-critical — the segment column/panel just shows an empty list.
+    }
+  }, [isSuperAdmin, inviteCompanyId]);
+
+  useEffect(() => {
+    fetchSegments();
+  }, [fetchSegments]);
 
   useEffect(() => {
     if (!isSuperAdmin || companies.length === 0) return;
@@ -162,6 +195,17 @@ export default function TeamManagement() {
     } catch (err) {
       setTeam(prevTeam);
       setError(err.response?.data?.message || "Failed to update roles.");
+    }
+  };
+
+  const updateMemberSegment = async (memberId, segmentId) => {
+    const prevTeam = team;
+    setTeam((t) => t.map((m) => (m.id === memberId ? { ...m, segmentId: segmentId || null } : m)));
+    try {
+      await api.patch(`/team/${memberId}/segment`, { segmentId: segmentId || null });
+    } catch (err) {
+      setTeam(prevTeam);
+      setError(err.response?.data?.message || "Failed to update segment.");
     }
   };
 
@@ -385,6 +429,9 @@ export default function TeamManagement() {
                 <th className="px-6 py-3 text-sm font-medium opacity-70 uppercase tracking-wider">
                   Role(s)
                 </th>
+                <th className="px-6 py-3 text-sm font-medium opacity-70 uppercase tracking-wider">
+                  Segment
+                </th>
                 <th className="px-6 py-3 text-sm font-medium opacity-70 uppercase tracking-wider text-right">
                   Actions
                 </th>
@@ -483,6 +530,25 @@ export default function TeamManagement() {
                     )}
                   </td>
 
+                  <td className="px-6 py-4">
+                    {member.type === "user" ? (
+                      <select
+                        value={member.segmentId || ""}
+                        onChange={(e) => updateMemberSegment(member.id, e.target.value)}
+                        className="text-xs bg-[var(--background)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 py-1.5 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer max-w-[160px]"
+                      >
+                        <option value="">Unassigned</option>
+                        {segments.map((seg) => (
+                          <option key={seg._id} value={seg._id}>
+                            {seg.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs opacity-40">—</span>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => handleRemove(member)}
@@ -496,7 +562,7 @@ export default function TeamManagement() {
 
               {team.length === 0 && (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center opacity-60">
+                  <td colSpan="5" className="px-6 py-8 text-center opacity-60">
                     No team members found. Start by inviting someone above!
                   </td>
                 </tr>
@@ -506,7 +572,15 @@ export default function TeamManagement() {
         </div>
       </div>
 
-      <SprintPlannerPermissionsPanel companyId={isSuperAdmin ? inviteCompanyId || undefined : null} />
+      <SegmentsPanel
+        companyId={isSuperAdmin ? inviteCompanyId || undefined : null}
+        segments={segments}
+        onChanged={fetchSegments}
+        team={team}
+        onTeamChanged={refreshTeam}
+      />
+
+      <SprintPlannerCapacityPanel companyId={isSuperAdmin ? inviteCompanyId || undefined : null} />
     </div>
   );
 }

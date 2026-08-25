@@ -10,6 +10,13 @@ const userSchema = new mongoose.Schema(
     companyName: { type: String },
     phone: { type: String, default: "" },
     inviteLimit: { type: Number, default: 5 },
+    // The team/department this employee belongs to (Web Team, QA Team, …) —
+    // admin-managed, drives the assignee picker's segment filter.
+    segmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Segment",
+      default: null,
+    },
     googleCalendar: {
   connected: { type: Boolean, default: false },
   accessToken: { type: String },

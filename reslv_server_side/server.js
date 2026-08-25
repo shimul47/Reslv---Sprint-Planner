@@ -20,13 +20,10 @@ import publicSupportRoutes from "./routes/publicSupport.js";
 import paymentRoutes, { handleWebhook } from "./routes/paymentRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import sprintPlannerRoutes from "./routes/sprintPlanner.js";
+import segmentRoutes from "./routes/segments.js";
 
 import Company from "./models/Company.js";
 import User from "./models/User.js";
-import Project from "./models/Project.js";
-import ProjectMember from "./models/ProjectMember.js";
-import ProductBacklog from "./models/ProductBacklog.js";
-import Pbi from "./models/Pbi.js";
 import Sprint from "./models/Sprint.js";
 import Task from "./models/Task.js";
 
@@ -73,6 +70,7 @@ app.use("/api/team", teamRoutes);
 app.use("/api/invites", inviteRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/sprint-planner", sprintPlannerRoutes);
+app.use("/api/segments", segmentRoutes);
 app.use("/api/public/support", publicSupportRoutes);
 app.use("/api/payments", paymentRoutes);
 // Basic Route
@@ -144,55 +142,23 @@ const seedDemoAccounts = async () => {
   await seedDemoSprintPlanner(demoCompany);
 };
 
-// Seeds one Project, ProductBacklog, published Sprint, PBI, and Task
-// assigned to the Demo Employee — so the admin-creates/assigns/publishes ->
+// Seeds one published Sprint with a couple of Tasks assigned to the Demo
+// Employee — so the sprint_planner-creates/assigns/publishes ->
 // employee-sees-their-task flow is testable immediately without manual setup.
 const seedDemoSprintPlanner = async (demoCompany) => {
-  const existingProject = await Project.findOne({
-    companyId: demoCompany._id,
-    key: "DEMO",
-  });
-  if (existingProject) return;
-
   const admin = await User.findOne({ email: "admin@reslv.io" });
   const employee = await User.findOne({ email: "employee@reslv.io" });
   if (!admin || !employee) return;
 
-  const project = await Project.create({
-    companyId: demoCompany._id,
-    name: "Demo Product",
-    key: "DEMO",
-    description: "Seeded project for trying out the Sprint Planner.",
-    createdBy: admin._id,
-  });
+  const existingSprint = await Sprint.findOne({ companyId: demoCompany._id });
+  if (existingSprint) return;
 
-  await ProjectMember.create([
-    {
-      projectId: project._id,
-      companyId: demoCompany._id,
-      userId: admin._id,
-      projectRole: "manager",
-    },
-    {
-      projectId: project._id,
-      companyId: demoCompany._id,
-      userId: employee._id,
-      projectRole: "member",
-      title: "Software Engineer",
-    },
-  ]);
-
-  const backlog = await ProductBacklog.create({
-    projectId: project._id,
-    companyId: demoCompany._id,
-    name: "Main Backlog",
-    isDefault: true,
-    position: 0,
-    createdBy: admin._id,
-  });
+  if (demoCompany.defaultSprintHours === undefined || demoCompany.defaultSprintHours === null) {
+    demoCompany.defaultSprintHours = 60;
+    await demoCompany.save();
+  }
 
   const sprint = await Sprint.create({
-    projectId: project._id,
     companyId: demoCompany._id,
     name: "Sprint 1",
     goal: "Ship the Sprint Planner foundation.",
@@ -203,31 +169,32 @@ const seedDemoSprintPlanner = async (demoCompany) => {
     createdBy: admin._id,
   });
 
-  const pbi = await Pbi.create({
-    projectId: project._id,
-    companyId: demoCompany._id,
-    backlogId: backlog._id,
-    sprintId: sprint._id,
-    title: "Set up the project workspace",
-    description: "Initial onboarding story for the demo sprint.",
-    storyPoints: 3,
-    effortHours: 8,
-    position: 0,
-    createdBy: admin._id,
-  });
-
-  await Task.create({
-    pbiId: pbi._id,
-    sprintId: sprint._id,
-    projectId: project._id,
-    companyId: demoCompany._id,
-    title: "Review onboarding checklist",
-    assigneeId: employee._id,
-    estimateHours: 4,
-    remainingHours: 4,
-    position: 0,
-    createdBy: admin._id,
-  });
+  await Task.create([
+    {
+      sprintId: sprint._id,
+      companyId: demoCompany._id,
+      title: "Review onboarding checklist",
+      description: "Initial onboarding task for the demo sprint.",
+      taskType: "chore",
+      priority: "medium",
+      assigneeId: employee._id,
+      approximateHours: 4,
+      position: 0,
+      createdBy: admin._id,
+    },
+    {
+      sprintId: sprint._id,
+      companyId: demoCompany._id,
+      title: "Fix login redirect bug",
+      description: "Seeded bug task for trying out the Sprint Planner.",
+      taskType: "bug",
+      priority: "high",
+      assigneeId: employee._id,
+      approximateHours: 6,
+      position: 1,
+      createdBy: admin._id,
+    },
+  ]);
 };
 
 mongoose

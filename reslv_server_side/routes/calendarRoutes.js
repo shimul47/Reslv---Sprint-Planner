@@ -1,21 +1,27 @@
 import express from "express";
-import { protect } from "../middlewares/auth.js";
+import { requireAuth, requireRoles } from "../middleware/authMiddleware.js";
 import {
   getAuthUrl,
   oauthCallback,
   getStatus,
   disconnect,
   getAvailability,
+  getTeamAvailability,
+  nudgeCalendarConnect,
 } from "../controllers/calendarController.js";
 
 const router = express.Router();
 
-router.get("/auth-url", protect, getAuthUrl);
-router.get("/status", protect, getStatus);
-router.post("/disconnect", protect, disconnect);
-router.get("/availability", protect, getAvailability);
+const OVERSEER_ROLES = ["admin", "superadmin", "sprint_planner"];
 
-// No protect here — Google redirects the browser directly, no auth header
+router.get("/auth-url", requireAuth, getAuthUrl);
+router.get("/status", requireAuth, getStatus);
+router.post("/disconnect", requireAuth, disconnect);
+router.get("/availability", requireAuth, getAvailability);
+router.get("/team-availability", requireAuth, requireRoles(OVERSEER_ROLES), getTeamAvailability);
+router.post("/nudge/:userId", requireAuth, requireRoles(OVERSEER_ROLES), nudgeCalendarConnect);
+
+// No requireAuth here — Google redirects the browser directly, no auth header
 router.get("/oauth/callback", oauthCallback);
 
 export default router;
