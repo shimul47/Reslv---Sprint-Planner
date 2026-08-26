@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, BarChart2, CheckCircle, Inbox, Lock, Plus, Settings } from "lucide-react";
+import { ArrowRight, BarChart2, CheckCircle, Inbox, Lock, Plus, Settings, Star } from "lucide-react";
 import { io } from "socket.io-client";
 import api from "../api/axios.js";
 import { AuthContext } from "../context/AuthContext.jsx";
@@ -76,6 +76,7 @@ export default function TicketsPage() {
             icon: reportsLocked ? <Lock size={14} /> : <BarChart2 size={14} />,
             locked: reportsLocked,
           },
+          { id: "feedback", label: "Feedback", path: "feedback", icon: <Star size={14} /> },
           { id: "settings", label: "Settings", path: "settings", icon: <Settings size={14} /> },
         ]
       : []),

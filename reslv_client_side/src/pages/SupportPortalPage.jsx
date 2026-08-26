@@ -37,6 +37,170 @@ function statusStyle(status) {
   return STATUS_STYLES[status] || STATUS_STYLES.open;
 }
 
+function TicketFeedback({ ticketId, companyCode, token }) {
+  const [existing, setExisting] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_ROOT}/public/support/${companyCode}/tickets/${ticketId}/feedback`, {
+      headers: authHeaders(token)
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.feedback) {
+          setExisting(data.feedback);
+          setRating(data.feedback.rating || 0);
+          setComment(data.feedback.comment || "");
+        } else {
+          setExisting(null);
+          setRating(0);
+          setComment("");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [ticketId, companyCode, token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!rating) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_ROOT}/public/support/${companyCode}/tickets/${ticketId}/feedback`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ rating, comment })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to submit feedback");
+      }
+      const data = await res.json();
+      setExisting(data.feedback);
+      setIsEditing(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return null;
+
+  if (existing && !isEditing) {
+    return (
+      <div className="flex-shrink-0 p-6 bg-[#0B0C10] border-t border-white/10 text-center animate-in fade-in duration-300">
+        <div className="max-w-md mx-auto bg-white/5 border border-white/10 rounded-2xl p-5 shadow-lg">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-3">
+            ✓ Feedback Submitted
+          </div>
+          <h4 className="text-white font-semibold text-base mb-2">Thank you for your review!</h4>
+          <div className="flex justify-center gap-1.5 mb-3 text-2xl">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <span
+                key={s}
+                className={s <= existing.rating ? "text-amber-400" : "text-white/20"}
+              >
+                ★
+              </span>
+            ))}
+          </div>
+          {existing.comment && (
+            <p className="text-white/70 text-sm italic bg-black/30 rounded-xl px-4 py-2.5 mb-4 border border-white/5">
+              "{existing.comment}"
+            </p>
+          )}
+          <button
+            onClick={() => {
+              setRating(existing.rating);
+              setComment(existing.comment || "");
+              setIsEditing(true);
+            }}
+            className="text-xs text-cyan-400 hover:text-cyan-300 font-medium px-4 py-1.5 rounded-lg border border-cyan-400/30 hover:border-cyan-400/60 transition-all cursor-pointer"
+          >
+            Edit Review
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-shrink-0 p-6 bg-[#0B0C10] border-t border-white/10">
+      <div className="max-w-md mx-auto">
+        <div className="text-center mb-4">
+          <h3 className="text-white font-bold text-lg">How was your support experience?</h3>
+          <p className="text-white/50 text-xs mt-1">Your rating helps us improve our service.</p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-300 text-xs rounded-xl text-center">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4">
+          <div
+            className="flex justify-center gap-2.5 cursor-pointer py-1"
+            onMouseLeave={() => setHoverRating(0)}
+          >
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`text-4xl transition-all transform hover:scale-110 ${
+                  s <= (hoverRating || rating)
+                    ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"
+                    : "text-white/20 hover:text-amber-400/50"
+                }`}
+                onMouseEnter={() => setHoverRating(s)}
+                onClick={() => setRating(s)}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Tell us what you liked or how we can improve (optional)..."
+            className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm outline-none focus:border-cyan-400/50 resize-none h-20 text-white placeholder-white/30"
+          />
+
+          <div className="flex gap-3 w-full">
+            {existing && (
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-white/70 hover:text-white hover:bg-white/5 text-sm font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!rating || submitting}
+              className="flex-1 rounded-xl bg-cyan-500 hover:bg-cyan-400 px-6 py-3 text-sm font-bold text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20"
+            >
+              {submitting ? "Submitting..." : existing ? "Update Feedback" : "Submit Feedback"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function SupportPortalPage() {
   const { companyCode } = useParams();
   const tokenKey = useMemo(
@@ -668,8 +832,8 @@ export default function SupportPortalPage() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Chat Input */}
-            {activeTicket.status !== "resolved" && (
+            {/* Chat Input or Feedback */}
+            {activeTicket.status !== "resolved" ? (
               <div className="flex-shrink-0 p-4 bg-[#0B0C10] border-t border-white/10">
                 <form onSubmit={handleSendMessage} className="flex gap-3">
                   <input
@@ -689,6 +853,12 @@ export default function SupportPortalPage() {
                   </button>
                 </form>
               </div>
+            ) : (
+              <TicketFeedback
+                ticketId={activeTicket.ticketNumber || activeTicket._id}
+                companyCode={companyCode}
+                token={token}
+              />
             )}
           </>
         ) : (

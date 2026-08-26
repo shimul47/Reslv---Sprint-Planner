@@ -228,6 +228,7 @@ export default function AppShell({ onLogout, user }) {
       if (location.pathname.startsWith("/tickets/escalations")) return "Escalations";
       if (location.pathname.startsWith("/tickets/resolved")) return "Resolved Tickets";
       if (location.pathname.startsWith("/tickets/reports")) return "Reports";
+      if (location.pathname.startsWith("/tickets/feedback")) return "Support Operations";
       if (location.pathname.startsWith("/tickets/settings")) return "Ticket Settings";
       return "Ticket Inbox";
     }
