@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
+import ChatWidget from "../components/chatbot/ChatWidget.jsx";
 
 const API_ROOT = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const WS_ROOT = import.meta.env.VITE_WS_URL || "http://localhost:5000";
@@ -879,6 +880,13 @@ export default function SupportPortalPage() {
           </div>
         )}
       </div>
+      <ChatWidget
+        apiRoot={API_ROOT}
+        wsRoot={WS_ROOT}
+        companyCode={companyCode}
+        token={token}
+        onHandoff={() => updateTicketList(token)}
+      />
     </div>
   );
 }
