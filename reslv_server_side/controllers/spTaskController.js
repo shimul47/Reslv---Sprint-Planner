@@ -3,7 +3,10 @@ import Task from "../models/Task.js";
 import TaskRequest from "../models/TaskRequest.js";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
+import Ticket from "../models/Ticket.js";
 import { resolveCompanyId } from "../utils/companyScope.js";
+import { emitTicketUpdated } from "./ticketApiController.js";
+import { summarizeCompletion } from "../services/escalationAiService.js";
 
 const OVERSEER_ROLES = ["admin", "superadmin", "sprint_planner"];
 const isOverseer = (user) => Boolean(user?.roles?.some((r) => OVERSEER_ROLES.includes(r)));
@@ -48,7 +51,17 @@ export const createTask = async (req, res) => {
       return res.status(404).json({ message: "Sprint not found." });
     }
 
-    const { title, description, taskType, priority, approximateHours, assigneeId, segmentId, dependsOn } = req.body;
+    const {
+      title,
+      description,
+      taskType,
+      priority,
+      approximateHours,
+      assigneeId,
+      segmentId,
+      dependsOn,
+      sourceTicketNumber,
+    } = req.body;
     if (!title?.trim()) {
       return res.status(400).json({ message: "Title is required." });
     }
@@ -61,6 +74,23 @@ export const createTask = async (req, res) => {
       cleanedDependsOn = await cleanDependsOn(dependsOn, sprint._id, null);
     } catch (err) {
       return res.status(err.status || 400).json({ message: err.message });
+    }
+
+    // Escalation hand-off: this task is being created from an already-
+    // escalated support ticket — link the two so the employee sees where it
+    // came from and completeTask can notify the admin when it's done.
+    let sourceTicket = null;
+    if (sourceTicketNumber) {
+      sourceTicket = await Ticket.findOne({ ticketNumber: sourceTicketNumber, companyId });
+      if (!sourceTicket) {
+        return res.status(404).json({ message: "Source ticket not found." });
+      }
+      if (sourceTicket.status !== "escalated") {
+        return res.status(409).json({ message: "Ticket is not in an escalated state." });
+      }
+      if (sourceTicket.linkedTaskId) {
+        return res.status(409).json({ message: "This ticket already has a linked sprint task." });
+      }
     }
 
     const count = await Task.countDocuments({ sprintId: sprint._id, status: "todo" });
@@ -77,7 +107,14 @@ export const createTask = async (req, res) => {
       dependsOn: cleanedDependsOn,
       position: count,
       createdBy: req.user.id,
+      sourceTicketId: sourceTicket?._id || null,
     });
+
+    if (sourceTicket) {
+      sourceTicket.linkedTaskId = task._id;
+      await sourceTicket.save();
+      emitTicketUpdated(req, sourceTicket);
+    }
 
     res.status(201).json({ task });
   } catch (error) {
@@ -186,9 +223,28 @@ export const listMyTasks = async (req, res) => {
       assigneeId: req.user.id,
       sprintId: currentSprint._id,
     })
-      .sort({ status: 1, updatedAt: -1 })
       .populate("dependsOn", "title status")
+      .populate("sourceTicketId", "ticketNumber subject")
       .lean();
+
+    const company = await Company.findById(req.user.companyId)
+      .select("prioritizationWeights.taskPriority")
+      .lean();
+    const priorityWeights = {
+      low: 1,
+      medium: 2,
+      high: 3,
+      ...(company?.prioritizationWeights?.taskPriority || {}),
+    };
+
+    // Not-done tasks before done, highest-weighted priority first within
+    // each status, most recently updated as the final tiebreak.
+    tasks.sort((a, b) => {
+      if (a.status !== b.status) return a.status === "done" ? 1 : b.status === "done" ? -1 : a.status.localeCompare(b.status);
+      const weightDiff = (priorityWeights[b.priority] ?? 0) - (priorityWeights[a.priority] ?? 0);
+      if (weightDiff !== 0) return weightDiff;
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
 
     const withSprint = tasks.map((task) => ({ ...task, sprint: currentSprint }));
 
@@ -312,6 +368,20 @@ export const completeTask = async (req, res) => {
     task.status = "done";
     task.doneAt = new Date();
     await task.save();
+
+    if (task.sourceTicketId) {
+      const ticket = await Ticket.findById(task.sourceTicketId);
+      if (ticket) {
+        const completionSummary = await summarizeCompletion({ ticket, task });
+        ticket.escalation = {
+          ...ticket.escalation,
+          completionSummary,
+          completionGeneratedAt: new Date(),
+        };
+        await ticket.save();
+        emitTicketUpdated(req, ticket);
+      }
+    }
 
     res.json({ task });
   } catch (error) {

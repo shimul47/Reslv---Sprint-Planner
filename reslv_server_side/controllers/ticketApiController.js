@@ -1,10 +1,11 @@
 import Ticket from "../models/Ticket.js";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
-import { companyHasFeature } from "../utils/planAccess.js";
-import { sendTicketCreatedEmail, sendTicketResolvedEmail } from "../utils/mailer.js";
+import Segment from "../models/Segment.js";
+import Task from "../models/Task.js";
+import { companyHasFeature, getCompanyPlan } from "../utils/planAccess.js";
 import { awardPoints } from "./loyaltyController.js";
-import { getCompanyPlan } from "../utils/planAccess.js";
+import { summarizeEscalation } from "../services/escalationAiService.js";
 
 // The ticket system is agent-only among non-admin roles — employee and
 // sprint_planner have their own dedicated areas instead.
@@ -42,11 +43,15 @@ const DEFAULT_TICKET_SETTINGS = {
   supportHoursNote: "",
 };
 
+const DEFAULT_SEVERITY_WEIGHTS = { low: 1, medium: 2, high: 3, critical: 5 };
+
 // Merges a company's stored ticketSettings over the defaults so companies
 // created before this feature (or with partially-set fields) still work.
 async function getCompanySettings(companyId) {
-  if (!companyId) return DEFAULT_TICKET_SETTINGS;
-  const company = await Company.findById(companyId).select("ticketSettings").lean();
+  if (!companyId) return { ...DEFAULT_TICKET_SETTINGS, ticketSeverityWeights: DEFAULT_SEVERITY_WEIGHTS };
+  const company = await Company.findById(companyId)
+    .select("ticketSettings prioritizationWeights.ticketSeverity")
+    .lean();
   const stored = company?.ticketSettings || {};
   return {
     slaTargets: { ...DEFAULT_TICKET_SETTINGS.slaTargets, ...(stored.slaTargets || {}) },
@@ -55,6 +60,10 @@ async function getCompanySettings(companyId) {
         ? DEFAULT_TICKET_SETTINGS.autoAssignOnReply
         : stored.autoAssignOnReply,
     supportHoursNote: stored.supportHoursNote || DEFAULT_TICKET_SETTINGS.supportHoursNote,
+    ticketSeverityWeights: {
+      ...DEFAULT_SEVERITY_WEIGHTS,
+      ...(company?.prioritizationWeights?.ticketSeverity || {}),
+    },
   };
 }
 
@@ -111,7 +120,7 @@ async function resolveActingUser(req) {
 function formatTicket(
   ticket,
   customer,
-  { includeInternal = true, companyFallback = "", slaTargets = null } = {},
+  { includeInternal = true, companyFallback = "", slaTargets = null, linkedTask = null } = {},
 ) {
   const snapshot = ticket.customerSnapshot || {};
   const messages = includeInternal
@@ -152,7 +161,21 @@ function formatTicket(
     resolvedAt: ticket.resolvedAt || null,
     tags: ticket.tags || [],
     unreadCount,
-    escalationStep: ticket.escalationStep || 0,
+    escalation: {
+      summary: ticket.escalation?.summary || "",
+      suggestedTeamName: ticket.escalation?.suggestedTeamName || "",
+      suggestedSegmentId: ticket.escalation?.suggestedSegmentId || null,
+      completionSummary: ticket.escalation?.completionSummary || "",
+    },
+    linkedTaskId: ticket.linkedTaskId || null,
+    linkedTask: linkedTask
+      ? {
+          id: linkedTask._id,
+          title: linkedTask.title,
+          status: linkedTask.status,
+          assigneeName: linkedTask.assigneeId?.name || "",
+        }
+      : null,
     ts: ticket.updatedAt || ticket.createdAt
       ? new Date(ticket.updatedAt || ticket.createdAt).toLocaleTimeString([], {
           hour: "2-digit",
@@ -182,7 +205,14 @@ async function loadCompanyTicketView(ticketDoc, options = {}) {
     const settings = await getCompanySettings(ticketDoc.companyId);
     slaTargets = settings.slaTargets;
   }
-  return formatTicket(ticketDoc, customer, { ...options, slaTargets });
+  let linkedTask = options.linkedTask;
+  if (linkedTask === undefined && ticketDoc.linkedTaskId) {
+    linkedTask = await Task.findById(ticketDoc.linkedTaskId)
+      .select("title status assigneeId")
+      .populate("assigneeId", "name")
+      .lean();
+  }
+  return formatTicket(ticketDoc, customer, { ...options, slaTargets, linkedTask });
 }
 
 async function resolveTicketThread(ticket, userId = null) {
@@ -197,7 +227,6 @@ async function resolveTicketThread(ticket, userId = null) {
 
 async function escalateTicketThread(ticket) {
   ticket.status = "escalated";
-  ticket.escalationStep = Math.min((ticket.escalationStep || 0) + 1, 3);
   await ticket.save();
   return ticket;
 }
@@ -215,7 +244,7 @@ async function addInternalNote(ticket, text, actingUser) {
   return ticket;
 }
 
-function emitTicketUpdated(req, ticket) {
+export function emitTicketUpdated(req, ticket) {
   const io = req.app.get("io");
   if (io) {
     io.to(`company:${ticket.companyId.toString()}`).emit("ticket:updated", {
@@ -253,10 +282,16 @@ export const getTickets = async (req, res) => {
   try {
     const filter = getTicketScope(req);
     const includeInternal = !req.user?.roles?.includes("customer");
-    // Most recently active ticket (new message, status/assignment change) first.
-    const tickets = await Ticket.find(filter).sort({ updatedAt: -1 });
+    const tickets = await Ticket.find(filter);
     // Fetch once and reuse for every ticket instead of a lookup per ticket.
-    const { slaTargets } = await getCompanySettings(req.user.companyId);
+    const { slaTargets, ticketSeverityWeights } = await getCompanySettings(req.user.companyId);
+    // Highest-weighted severity first (per the company's Admin Configuration
+    // panel settings), most recently active as the tiebreak.
+    tickets.sort((a, b) => {
+      const weightDiff = (ticketSeverityWeights[b.severity] ?? 0) - (ticketSeverityWeights[a.severity] ?? 0);
+      if (weightDiff !== 0) return weightDiff;
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
     const formatted = [];
 
     for (const ticket of tickets) {
@@ -379,15 +414,6 @@ export const createTicket = async (req, res) => {
       const formatted = await loadCompanyTicketView(ticket);
       io.to(`company:${company._id.toString()}`).emit("ticket:created", formatted);
     }
-
-    // Fire-and-forget: don't let a slow/failed email delay or break the
-    // ticket creation response (sendTicketCreatedEmail already swallows
-    // its own errors internally).
-    sendTicketCreatedEmail(displayEmail, {
-      ticketNumber,
-      subject,
-      companyName: company.name,
-    });
 
     res.status(201).json({ ticket: await loadCompanyTicketView(ticket) });
   } catch (error) {
@@ -568,7 +594,32 @@ export const escalateTicket = async (req, res) => {
         .json({ message: "Resolved tickets cannot be escalated." });
     }
 
+    if (!ticket.assignedTo) {
+      return res
+        .status(400)
+        .json({ message: "Assign the ticket to an agent before escalating." });
+    }
+
     await escalateTicketThread(ticket);
+
+    const [agent, segments] = await Promise.all([
+      User.findById(ticket.assignedTo).select("name").lean(),
+      Segment.find({ companyId: ticket.companyId }).select("name").lean(),
+    ]);
+    const { summary, suggestedTeamName, suggestedSegmentId } = await summarizeEscalation({
+      ticket,
+      agentName: agent?.name,
+      segments,
+    });
+    ticket.escalation = {
+      ...ticket.escalation,
+      summary,
+      suggestedTeamName,
+      suggestedSegmentId,
+      generatedAt: new Date(),
+    };
+    await ticket.save();
+
     emitTicketUpdated(req, ticket);
 
     res.json({ ticket: await loadCompanyTicketView(ticket) });
@@ -598,19 +649,14 @@ export const resolveTicket = async (req, res) => {
       const settings = await getCompanySettings(ticket.companyId);
       const sla = computeSla(ticket, settings.slaTargets);
       const withinSla = sla.slaMins > 0;
-      
+
       const points = withinSla ? 50 : 10;
-      const reason = withinSla 
+      const reason = withinSla
         ? `Resolved ticket ${ticket.ticketNumber} within SLA`
         : `Resolved ticket ${ticket.ticketNumber}`;
-      
+
       await awardPoints(ticket.companyId, points, reason, req.user?.id);
     }
-
-    sendTicketResolvedEmail(ticket.customerSnapshot?.email, {
-      ticketNumber: ticket.ticketNumber,
-      subject: ticket.subject,
-    });
 
     res.json({ ticket: await loadCompanyTicketView(ticket) });
   } catch (error) {
@@ -843,6 +889,43 @@ export const getTicketReports = async (req, res) => {
     });
   } catch (error) {
     console.error("Ticket reports error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// GET /api/tickets/reports/escalations — the open escalation queue for the
+// Admin Configuration & System Monitoring panel. Oldest escalation first,
+// since that's the one most overdue for a resolution.
+export const getEscalations = async (req, res) => {
+  try {
+    const scope = getTicketScope(req);
+    const tickets = await Ticket.find({ ...scope, status: "escalated" })
+      .select("ticketNumber subject severity assignee assignedTo escalation linkedTaskId createdAt updatedAt")
+      .populate("linkedTaskId", "title status")
+      .lean();
+
+    tickets.sort((a, b) => new Date(a.escalation?.generatedAt || a.createdAt) - new Date(b.escalation?.generatedAt || b.createdAt));
+
+    const escalations = tickets.map((t) => ({
+      ticketNumber: t.ticketNumber,
+      subject: t.subject,
+      severity: t.severity,
+      assignee: t.assignee || "Unassigned",
+      escalation: {
+        summary: t.escalation?.summary || "",
+        suggestedTeamName: t.escalation?.suggestedTeamName || "",
+        generatedAt: t.escalation?.generatedAt || null,
+        completionSummary: t.escalation?.completionSummary || "",
+      },
+      linkedTask: t.linkedTaskId
+        ? { id: t.linkedTaskId._id, title: t.linkedTaskId.title, status: t.linkedTaskId.status }
+        : null,
+      ageHours: Math.round((Date.now() - new Date(t.escalation?.generatedAt || t.createdAt).getTime()) / 3_600_000),
+    }));
+
+    res.json({ escalations });
+  } catch (error) {
+    console.error("Get escalations error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

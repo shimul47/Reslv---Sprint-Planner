@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate, Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Zap, Trophy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { AuthContext } from "../context/AuthContext.jsx";
 import RoleSwitcher from "../components/RoleSwitcher.jsx";
 import { roleCan } from "../utils/permissions.js";
@@ -180,15 +180,13 @@ export default function AppShell({ onLogout, user }) {
     location.pathname === "/" || location.pathname === "/dashboard";
   const isSprintPlanner = location.pathname.startsWith("/sprint-planner");
   const isBilling = location.pathname.startsWith("/billing");
-  const isAdminSection = location.pathname.startsWith("/admin");
+  const isAdminSection = location.pathname.startsWith("/admin/panel");
   const isProfile = location.pathname.startsWith("/profile");
   const isTickets = location.pathname.startsWith("/tickets");
-  const isStatistics = location.pathname.startsWith("/statistics");
-  const isLoyalty = location.pathname.startsWith("/loyalty");
 
   const isRestrictedForUser =
     (isSprintPlanner && !canSeeSprintPlanner) ||
-    ((isAdminSection || isBilling || isStatistics || isLoyalty) && !isAdmin) ||
+    ((isAdminSection || isBilling) && !isAdmin) ||
     (isTickets && !canSeeTickets);
 
   useEffect(() => {
@@ -223,25 +221,11 @@ export default function AppShell({ onLogout, user }) {
       active: isSprintPlanner,
     },
     {
-      label: "Team Admin",
-      path: "/admin/team",
+      label: "Admin",
+      path: "/admin/panel/monitoring",
       icon: <Icons.Users />,
       show: isAdmin,
       active: isAdminSection,
-    },
-    {
-      label: "Statistics",
-      path: "/statistics",
-      icon: <Icons.ChartBar />,
-      show: isAdmin,
-      active: isStatistics,
-    },
-    {
-      label: "Loyalty Points",
-      path: "/loyalty",
-      icon: <Trophy className="w-5 h-5 text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white" />,
-      show: isAdmin,
-      active: isLoyalty,
     },
     {
       label: "Billing",
@@ -264,8 +248,17 @@ export default function AppShell({ onLogout, user }) {
       return "Ticket Inbox";
     }
     if (isSprintPlanner) return "Sprint Planner";
-    if (isAdminSection) return "Team Management";
-    if (isStatistics) return "Statistics";
+    if (isAdminSection) {
+      const tab = location.pathname.split("/")[3] || "monitoring";
+      const tabTitles = {
+        monitoring: "Admin: Monitoring",
+        team: "Admin: Team",
+        statistics: "Admin: Statistics",
+        loyalty: "Admin: Loyalty Points",
+        config: "Admin: Configuration",
+      };
+      return tabTitles[tab] || "Admin";
+    }
     if (isBilling) return "Billing & Subscription";
     if (isProfile) return "My Profile";
     return "Application";
@@ -467,7 +460,7 @@ export default function AppShell({ onLogout, user }) {
                 {/* Admin Widget */}
                 {isAdmin && (
                   <div
-                    onClick={() => navigate("/admin/team")}
+                    onClick={() => navigate("/admin/panel/team")}
                     className="bg-white dark:bg-[var(--background)] p-6 rounded-xl border border-[var(--color-border)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.08)] hover:border-[var(--color-primary)] transition-[box-shadow,border-color] duration-200 cursor-pointer group"
                   >
                     <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">

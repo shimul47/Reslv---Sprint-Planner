@@ -28,6 +28,23 @@ const companySchema = new mongoose.Schema(
       endHour: { type: Number, default: 17, min: 1, max: 24 },
       timezone: { type: String, default: "Asia/Dhaka" },
     },
+    // Numeric weights an admin can tune from the Admin Configuration panel.
+    // Higher sorts first: ticketSeverity drives the ticket inbox order,
+    // taskPriority drives the "My Tasks" order (see ticketApiController.getTickets
+    // and spTaskController.listMyTasks).
+    prioritizationWeights: {
+      ticketSeverity: {
+        low: { type: Number, default: 1, min: 0 },
+        medium: { type: Number, default: 2, min: 0 },
+        high: { type: Number, default: 3, min: 0 },
+        critical: { type: Number, default: 5, min: 0 },
+      },
+      taskPriority: {
+        low: { type: Number, default: 1, min: 0 },
+        medium: { type: Number, default: 2, min: 0 },
+        high: { type: Number, default: 3, min: 0 },
+      },
+    },
   },
   { timestamps: true },
 );

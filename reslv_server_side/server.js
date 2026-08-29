@@ -25,6 +25,7 @@ import feedbackRoutes from "./routes/feedbackRoutes.js";
 import chatbotRoutes from "./routes/chatbot.js";
 import companyStatsRoutes from "./routes/companyStats.js";
 import loyaltyRoutes from "./routes/loyaltyRoutes.js";
+import adminConfigRoutes from "./routes/adminConfig.js";
 
 import Company from "./models/Company.js";
 import User from "./models/User.js";
@@ -80,6 +81,7 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/reports", companyStatsRoutes);
 app.use("/api/loyalty", loyaltyRoutes);
+app.use("/api/admin-config", adminConfigRoutes);
 app.use("/api/payments", paymentRoutes);
 // Basic Route
 app.get("/", (req, res) => {

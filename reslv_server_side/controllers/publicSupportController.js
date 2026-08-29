@@ -5,7 +5,6 @@ import User from "../models/User.js";
 import Company from "../models/Company.js";
 import Ticket from "../models/Ticket.js";
 import Feedback from "../models/Feedback.js";
-import { sendTicketCreatedEmail } from "../utils/mailer.js";
 import { awardPoints } from "./loyaltyController.js";
 import { getCompanyPlan } from "../utils/planAccess.js";
 
@@ -266,12 +265,6 @@ export const handleCreateTicket = async (req, res) => {
     if (io) {
       io.to(`company:${targetCompany._id}`).emit("ticket:new", savedTicket);
     }
-
-    sendTicketCreatedEmail(req.user.email, {
-      ticketNumber,
-      subject,
-      companyName: targetCompany.name,
-    });
 
     res.status(201).json({ ticket: savedTicket });
   } catch (error) {

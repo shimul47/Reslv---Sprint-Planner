@@ -244,6 +244,12 @@ export default function SupportFeedbackPage() {
     fill: SEVERITY_COLORS[s.severity] || COLORS.blue,
   }));
 
+  // Rating distribution chart data (from csat.distribution, keyed 5..1)
+  const ratingDistData = [5, 4, 3, 2, 1].map((star) => ({
+    name: `${star}★`,
+    count: csat.distribution?.[star] || 0,
+  }));
+
   return (
     <div className="sf-page">
       <style>{`
@@ -659,40 +665,6 @@ export default function SupportFeedbackPage() {
           font-size: 14px;
         }
 
-        /* ── Rating Distribution Bar ── */
-        .sf-dist-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 6px;
-        }
-        .sf-dist-label {
-          width: 16px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #6b7280;
-          text-align: right;
-        }
-        .sf-dist-bar-bg {
-          flex: 1;
-          height: 8px;
-          border-radius: 4px;
-          background: #f3f4f6;
-          overflow: hidden;
-        }
-        .sf-dist-bar-fill {
-          height: 100%;
-          border-radius: 4px;
-          background: linear-gradient(90deg, #FFCC00, #FFB800);
-          transition: width 0.5s ease-out;
-        }
-        .sf-dist-count {
-          width: 30px;
-          font-size: 12px;
-          color: #9ca3af;
-          text-align: right;
-        }
-
         /* ── Custom Tooltip ── */
         .sf-tooltip {
           background: #1a1a2e;
@@ -1021,34 +993,54 @@ export default function SupportFeedbackPage() {
 
               <div className="sf-panel">
                 <div className="sf-panel-title">Rating Distribution</div>
-                {[5, 4, 3, 2, 1].map((star) => {
-                  const count = csat.distribution?.[star] || 0;
-                  const max = csat.totalReviews || 1;
-                  const pct = (count / max) * 100;
-                  return (
-                    <div className="sf-dist-row" key={star}>
-                      <span className="sf-dist-label">{star}★</span>
-                      <div className="sf-dist-bar-bg">
-                        <div
-                          className="sf-dist-bar-fill"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="sf-dist-count">{count}</span>
-                    </div>
-                  );
-                })}
+                {csat.totalReviews > 0 ? (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      data={ratingDistData}
+                      layout="vertical"
+                      margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 12, fill: "#9ca3af" }} allowDecimals={false} />
+                      <YAxis
+                        dataKey="name"
+                        type="category"
+                        tick={{ fontSize: 12, fill: "#6b7280" }}
+                        width={30}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "rgba(255, 204, 0, 0.08)" }}
+                        contentStyle={{
+                          background: "#1a1a2e",
+                          border: "none",
+                          borderRadius: 8,
+                          color: "#fff",
+                          fontSize: 12,
+                        }}
+                        formatter={(value) => [value, "Reviews"]}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={22} fill={COLORS.yellow} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="sf-empty">No ratings yet.</div>
+                )}
               </div>
             </div>
 
             {/* Feedback Over Time */}
-            {feedbackOverTime.length > 0 && (
-              <div className="sf-panel" style={{ marginBottom: 20 }}>
-                <div className="sf-panel-title">Feedback Volume (Last 30 Days)</div>
+            <div className="sf-panel" style={{ marginBottom: 20 }}>
+              <div className="sf-panel-title">Feedback Volume (Last 30 Days)</div>
+              {feedbackOverTime.some((d) => d.count > 0) ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={feedbackOverTime} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} tickFormatter={(d) => formatDate(d)} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      tickFormatter={(d) => formatDate(d)}
+                      interval={Math.ceil(feedbackOverTime.length / 8) - 1}
+                    />
                     <YAxis tick={{ fontSize: 12, fill: "#9ca3af" }} allowDecimals={false} />
                     <Tooltip
                       contentStyle={{
@@ -1058,12 +1050,16 @@ export default function SupportFeedbackPage() {
                         color: "#fff",
                         fontSize: 12,
                       }}
+                      labelFormatter={(d) => formatDate(d)}
+                      formatter={(value) => [value, "Reviews"]}
                     />
-                    <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} barSize={18} name="Reviews" />
+                    <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} maxBarSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-            )}
+              ) : (
+                <div className="sf-empty">No feedback in the last 30 days.</div>
+              )}
+            </div>
 
             {/* Recent Feedback */}
             <div className="sf-panel">

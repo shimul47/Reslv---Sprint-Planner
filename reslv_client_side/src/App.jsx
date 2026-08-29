@@ -7,7 +7,6 @@ import LoginScreen from "./pages/LoginScreen";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import {
   InboxView,
-  EscalationsView,
   ResolvedView,
 } from "./components/workspace/Views";
 import { ReportsView } from "./components/workspace/Reports";
@@ -26,6 +25,9 @@ import SupportPortalPage from "./pages/SupportPortalPage";
 import TicketsPage from "./pages/TicketsPage";
 import SupportFeedbackPage from "./pages/SupportFeedbackPage";
 import LoyaltyPointsPage from "./pages/LoyaltyPointsPage";
+import AdminPanelPage from "./pages/AdminPanelPage";
+import MonitoringDashboard from "./components/admin/MonitoringDashboard.jsx";
+import ConfigurationPanel from "./components/admin/ConfigurationPanel.jsx";
 import { roleLandingPath } from "./utils/roleRouting.js";
 
 function RequireAuth({ allowedRoles, children }) {
@@ -135,7 +137,6 @@ export default function App() {
         <Route path="tickets" element={<TicketsPage />}>
           <Route index element={<Navigate to="inbox" replace />} />
           <Route path="inbox" element={<InboxView />} />
-          <Route path="escalations" element={<EscalationsView />} />
           <Route path="resolved" element={<ResolvedView />} />
           <Route
             path="reports"
@@ -168,23 +169,24 @@ export default function App() {
           <Route path="performance" element={<PerformanceAnalyticsView />} />
           <Route path="availability" element={<AvailabilityView />} />
         </Route>
-        <Route path="admin/team" element={<TeamManagement />} />
         <Route
-          path="statistics"
+          path="admin/panel"
           element={
             <RequireAuth allowedRoles={["superadmin", "admin"]}>
-              <StatisticsPage />
+              <AdminPanelPage />
             </RequireAuth>
           }
-        />
-        <Route
-          path="loyalty"
-          element={
-            <RequireAuth allowedRoles={["superadmin", "admin"]}>
-              <LoyaltyPointsPage />
-            </RequireAuth>
-          }
-        />
+        >
+          <Route index element={<Navigate to="monitoring" replace />} />
+          <Route path="monitoring" element={<MonitoringDashboard />} />
+          <Route path="team" element={<TeamManagement />} />
+          <Route path="statistics" element={<StatisticsPage />} />
+          <Route path="loyalty" element={<LoyaltyPointsPage />} />
+          <Route path="config" element={<ConfigurationPanel />} />
+        </Route>
+        <Route path="admin/team" element={<Navigate to="/admin/panel/team" replace />} />
+        <Route path="statistics" element={<Navigate to="/admin/panel/statistics" replace />} />
+        <Route path="loyalty" element={<Navigate to="/admin/panel/loyalty" replace />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="billing/success" element={<BillingPage />} />
         <Route path="billing/cancelled" element={<BillingPage />} />
