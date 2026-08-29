@@ -26,3 +26,27 @@ export const requireCustomerAuth = async (req, res, next) => {
     return res.status(401).json({ error: "Session expired or invalid token" });
   }
 };
+
+// Same Bearer-token verification as requireCustomerAuth, but never rejects —
+// used by routes (like the chatbot) that serve both signed-in customers and
+// anonymous visitors. Attaches req.user when a valid token is present,
+// otherwise just calls next() with req.user left unset.
+export const optionalCustomerAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "fallback_secret",
+    );
+    req.user = await User.findById(decoded.id).select("-password");
+  } catch (err) {
+    // Invalid/expired token on an optional route — proceed anonymously
+    // rather than failing the request.
+  }
+  next();
+};
