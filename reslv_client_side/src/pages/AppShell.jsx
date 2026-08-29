@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate, Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Zap, Trophy } from "lucide-react";
 import { AuthContext } from "../context/AuthContext.jsx";
 import RoleSwitcher from "../components/RoleSwitcher.jsx";
 import { roleCan } from "../utils/permissions.js";
@@ -184,10 +184,11 @@ export default function AppShell({ onLogout, user }) {
   const isProfile = location.pathname.startsWith("/profile");
   const isTickets = location.pathname.startsWith("/tickets");
   const isStatistics = location.pathname.startsWith("/statistics");
+  const isLoyalty = location.pathname.startsWith("/loyalty");
 
   const isRestrictedForUser =
     (isSprintPlanner && !canSeeSprintPlanner) ||
-    ((isAdminSection || isBilling || isStatistics) && !isAdmin) ||
+    ((isAdminSection || isBilling || isStatistics || isLoyalty) && !isAdmin) ||
     (isTickets && !canSeeTickets);
 
   useEffect(() => {
@@ -234,6 +235,13 @@ export default function AppShell({ onLogout, user }) {
       icon: <Icons.ChartBar />,
       show: isAdmin,
       active: isStatistics,
+    },
+    {
+      label: "Loyalty Points",
+      path: "/loyalty",
+      icon: <Trophy className="w-5 h-5 text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white" />,
+      show: isAdmin,
+      active: isLoyalty,
     },
     {
       label: "Billing",

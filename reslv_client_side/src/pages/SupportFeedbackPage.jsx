@@ -25,6 +25,7 @@ import {
   BarChart3,
   ChevronDown,
   RefreshCw,
+  Award
 } from "lucide-react";
 
 // ─── Palette ──────────────────────────────────────────────────
@@ -139,16 +140,27 @@ export default function SupportFeedbackPage() {
   const { user } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [loyaltySummary, setLoyaltySummary] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("overview"); // overview | feedback | agents
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, priorityFilter]);
 
   const fetchDashboard = async () => {
     setLoading(true);
     try {
       const res = await api.get("/feedback/dashboard");
       setData(res.data);
+      
+      try {
+        const loyRes = await api.get("/loyalty/summary");
+        setLoyaltySummary(loyRes.data.summary);
+      } catch(e) {}
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -211,6 +223,13 @@ export default function SupportFeedbackPage() {
     if (priorityFilter !== "all" && t.severity !== priorityFilter) return false;
     return true;
   });
+
+  const ticketsPerPage = 5;
+  const totalPages = Math.ceil(filteredTickets.length / ticketsPerPage);
+  const currentTickets = filteredTickets.slice(
+    (currentPage - 1) * ticketsPerPage,
+    currentPage * ticketsPerPage
+  );
 
   // Category chart data (from bySeverity, rename for the reference UI)
   const categoryLabels = {
@@ -782,6 +801,17 @@ export default function SupportFeedbackPage() {
                 trendColor={COLORS.orange}
                 icon={Clock}
               />
+              {loyaltySummary && (
+                <KpiCard
+                  title="Loyalty Points"
+                  value={loyaltySummary.totalPoints.toLocaleString()}
+                  subtitle="Total earned"
+                  trend={1}
+                  trendLabel="active points"
+                  trendColor={COLORS.yellow}
+                  icon={Award}
+                />
+              )}
               <KpiCard
                 title="CSAT"
                 value={
@@ -894,31 +924,31 @@ export default function SupportFeedbackPage() {
                 <table className="sf-table">
                   <thead>
                     <tr>
-                      <th>Ticket</th>
-                      <th>Subject</th>
-                      <th>Priority</th>
-                      <th>Status</th>
-                      <th>Assignee</th>
+                      <th style={{ textAlign: "left" }}>Ticket</th>
+                      <th style={{ textAlign: "left" }}>Subject</th>
+                      <th style={{ textAlign: "center" }}>Priority</th>
+                      <th style={{ textAlign: "center" }}>Status</th>
+                      <th style={{ textAlign: "left" }}>Assignee</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTickets.length === 0 ? (
+                    {currentTickets.length === 0 ? (
                       <tr>
                         <td colSpan={5} style={{ textAlign: "center", color: "#9ca3af", padding: 30 }}>
                           No tickets match your filters.
                         </td>
                       </tr>
                     ) : (
-                      filteredTickets.map((t) => {
+                      currentTickets.map((t) => {
                         const sev = SEVERITY_COLORS[t.severity] || COLORS.blue;
                         const st = STATUS_STYLES[t.status] || STATUS_STYLES.open;
                         return (
                           <tr key={t.ticketNumber || t._id}>
-                            <td style={{ fontWeight: 600, color: "#4F6BFF" }}>
+                            <td style={{ fontWeight: 600, color: "#4F6BFF", textAlign: "left" }}>
                               {t.ticketNumber}
                             </td>
-                            <td>{t.subject || "—"}</td>
-                            <td>
+                            <td style={{ textAlign: "left" }}>{t.subject || "—"}</td>
+                            <td style={{ textAlign: "center" }}>
                               <span
                                 className="sf-badge"
                                 style={{ background: sev + "18", color: sev }}
@@ -926,7 +956,7 @@ export default function SupportFeedbackPage() {
                                 {t.severity}
                               </span>
                             </td>
-                            <td>
+                            <td style={{ textAlign: "center" }}>
                               <span
                                 className="sf-badge"
                                 style={{ background: st.bg, color: st.color }}
@@ -934,7 +964,7 @@ export default function SupportFeedbackPage() {
                                 {st.label}
                               </span>
                             </td>
-                            <td>{t.assignee || "Unassigned"}</td>
+                            <td style={{ textAlign: "left" }}>{t.assignee || "Unassigned"}</td>
                           </tr>
                         );
                       })
@@ -942,6 +972,31 @@ export default function SupportFeedbackPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 16, borderTop: "1px solid #e8ecf1" }}>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    Showing {(currentPage - 1) * ticketsPerPage + 1} to {Math.min(currentPage * ticketsPerPage, filteredTickets.length)} of {filteredTickets.length} tickets
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      style={{ padding: "6px 12px", border: "1px solid #e0e4ea", borderRadius: 6, background: currentPage === 1 ? "#f9fafb" : "#fff", color: currentPage === 1 ? "#9ca3af" : "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      style={{ padding: "6px 12px", border: "1px solid #e0e4ea", borderRadius: 6, background: currentPage === totalPages ? "#f9fafb" : "#fff", color: currentPage === totalPages ? "#9ca3af" : "#374151", cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

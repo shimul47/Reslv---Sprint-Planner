@@ -4,6 +4,7 @@ import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import { getCompanyPlan } from "../utils/planAccess.js";
 import { sendSubscriptionUpdatedEmail, sendSubscriptionCanceledEmail } from "../utils/mailer.js";
+import { awardPoints } from "./loyaltyController.js";
 
 // Billing emails go to whichever admin/superadmin was set up first for the
 // company — there's no single "billing contact" field on Company yet.
@@ -201,7 +202,11 @@ export const handleWebhook = async (req, res) => {
           const stripeSubscription = await stripe.subscriptions.retrieve(
             session.subscription,
           );
-          await applySubscriptionUpdate(stripeSubscription);
+          const savedSub = await applySubscriptionUpdate(stripeSubscription);
+          
+          if (savedSub && savedSub.plan !== "free") {
+            await awardPoints(savedSub.companyId, 200, "Subscription purchase or renewal");
+          }
         }
         break;
       }
@@ -290,4 +295,6 @@ async function applySubscriptionUpdate(stripeSubscription) {
     billingCycle: planInfo.billingCycle,
     status: stripeSubscription.status,
   });
+
+  return saved;
 }

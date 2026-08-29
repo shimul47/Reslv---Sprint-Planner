@@ -6,6 +6,8 @@ import Company from "../models/Company.js";
 import Ticket from "../models/Ticket.js";
 import Feedback from "../models/Feedback.js";
 import { sendTicketCreatedEmail } from "../utils/mailer.js";
+import { awardPoints } from "./loyaltyController.js";
+import { getCompanyPlan } from "../utils/planAccess.js";
 
 // -------------------------------------------------------------
 // PUBLIC COMPANY INFO (branding for the portal's pre-login/nav header)
@@ -408,6 +410,19 @@ export const handleSubmitFeedback = async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    // Feature 3: Bonus points for 5-star rating
+    if (numRating === 5 && feedback.agentId) {
+      const plan = await getCompanyPlan(ticket.companyId);
+      if (plan.id !== "free") {
+        await awardPoints(
+          ticket.companyId,
+          25,
+          `Received 5-star feedback on ticket ${ticket.ticketNumber}`,
+          feedback.agentId
+        );
+      }
+    }
 
     res.status(200).json({ feedback });
   } catch (error) {
