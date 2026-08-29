@@ -25,6 +25,7 @@ import InviteAcceptPage from "./pages/InviteAcceptPage";
 import SupportPortalPage from "./pages/SupportPortalPage";
 import TicketsPage from "./pages/TicketsPage";
 import SupportFeedbackPage from "./pages/SupportFeedbackPage";
+import LoyaltyPointsPage from "./pages/LoyaltyPointsPage";
 import { roleLandingPath } from "./utils/roleRouting.js";
 
 function RequireAuth({ allowedRoles, children }) {
@@ -173,6 +174,14 @@ export default function App() {
           element={
             <RequireAuth allowedRoles={["superadmin", "admin"]}>
               <StatisticsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="loyalty"
+          element={
+            <RequireAuth allowedRoles={["superadmin", "admin"]}>
+              <LoyaltyPointsPage />
             </RequireAuth>
           }
         />

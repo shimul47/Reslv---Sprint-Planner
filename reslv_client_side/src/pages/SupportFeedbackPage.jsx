@@ -25,6 +25,7 @@ import {
   BarChart3,
   ChevronDown,
   RefreshCw,
+  Award
 } from "lucide-react";
 
 // ─── Palette ──────────────────────────────────────────────────
@@ -139,6 +140,7 @@ export default function SupportFeedbackPage() {
   const { user } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [loyaltySummary, setLoyaltySummary] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -154,6 +156,11 @@ export default function SupportFeedbackPage() {
     try {
       const res = await api.get("/feedback/dashboard");
       setData(res.data);
+      
+      try {
+        const loyRes = await api.get("/loyalty/summary");
+        setLoyaltySummary(loyRes.data.summary);
+      } catch(e) {}
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -794,6 +801,17 @@ export default function SupportFeedbackPage() {
                 trendColor={COLORS.orange}
                 icon={Clock}
               />
+              {loyaltySummary && (
+                <KpiCard
+                  title="Loyalty Points"
+                  value={loyaltySummary.totalPoints.toLocaleString()}
+                  subtitle="Total earned"
+                  trend={1}
+                  trendLabel="active points"
+                  trendColor={COLORS.yellow}
+                  icon={Award}
+                />
+              )}
               <KpiCard
                 title="CSAT"
                 value={

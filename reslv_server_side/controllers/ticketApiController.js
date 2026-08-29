@@ -3,6 +3,8 @@ import User from "../models/User.js";
 import Company from "../models/Company.js";
 import { companyHasFeature } from "../utils/planAccess.js";
 import { sendTicketCreatedEmail, sendTicketResolvedEmail } from "../utils/mailer.js";
+import { awardPoints } from "./loyaltyController.js";
+import { getCompanyPlan } from "../utils/planAccess.js";
 
 // The ticket system is agent-only among non-admin roles — employee and
 // sprint_planner have their own dedicated areas instead.
@@ -589,6 +591,21 @@ export const resolveTicket = async (req, res) => {
 
     await resolveTicketThread(ticket, req.user?.id);
     emitTicketUpdated(req, ticket);
+
+    // Feature 3: Award loyalty points
+    const plan = await getCompanyPlan(ticket.companyId);
+    if (plan.id !== "free") {
+      const settings = await getCompanySettings(ticket.companyId);
+      const sla = computeSla(ticket, settings.slaTargets);
+      const withinSla = sla.slaMins > 0;
+      
+      const points = withinSla ? 50 : 10;
+      const reason = withinSla 
+        ? `Resolved ticket ${ticket.ticketNumber} within SLA`
+        : `Resolved ticket ${ticket.ticketNumber}`;
+      
+      await awardPoints(ticket.companyId, points, reason, req.user?.id);
+    }
 
     sendTicketResolvedEmail(ticket.customerSnapshot?.email, {
       ticketNumber: ticket.ticketNumber,

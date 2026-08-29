@@ -62,6 +62,9 @@ export default function ProfilePage() {
   // Feedback State
   const [myScore, setMyScore] = useState(null);
 
+  // Loyalty State
+  const [loyaltySummary, setLoyaltySummary] = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     api
@@ -78,6 +81,20 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    let cancelled = false;
+    api
+      .get("/loyalty/summary")
+      .then((res) => {
+        if (!cancelled) setLoyaltySummary(res.data.summary);
+      })
+      .catch((err) => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin]);
 
   // Keep profile local state synced with context
   useEffect(() => {
@@ -481,6 +498,26 @@ export default function ProfilePage() {
                               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                             </svg>
                           ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {loyaltySummary && (
+                  <div className="mt-10 pt-8 border-t border-[var(--color-border)]">
+                    <h3 className="text-lg font-bold mb-4">Loyalty Points</h3>
+                    <div className="flex items-center gap-6">
+                      <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 min-w-[120px]">
+                        <div className="text-4xl font-bold">{loyaltySummary.availablePoints.toLocaleString()}</div>
+                        <div className="text-sm font-medium mt-1 text-[var(--color-foreground)] opacity-70">available</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium opacity-80 mb-2">
+                          Available Discount: <span className="text-green-600 font-bold">${loyaltySummary.availableDiscount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                        </div>
+                        <div className="text-sm opacity-60">
+                          Total earned: {loyaltySummary.totalPoints.toLocaleString()}
                         </div>
                       </div>
                     </div>
