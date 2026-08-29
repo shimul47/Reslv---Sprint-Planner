@@ -1,6 +1,7 @@
-import { CheckCircle, Shield } from "lucide-react";
+import { CheckCircle, Shield, Users } from "lucide-react";
 import { ESC_STEPS } from "../../data/workspaceData.js";
 import { Av } from "./Atoms.jsx";
+import { renderMessageText } from "../../utils/chatFormatting.jsx";
 
 export function Bubble({ msg, cx }) {
   if (msg.from === "internal") {
@@ -12,6 +13,21 @@ export function Bubble({ msg, cx }) {
           <span className="leading-relaxed">{msg.text}</span>
         </div>
         <div className="flex-1 h-px bg-[rgba(245,160,35,0.18)]" />
+      </div>
+    );
+  }
+
+  // A visible status line (e.g. a chatbot handoff) — an event announcement
+  // for both parties, not a private staff note like "internal" above.
+  if (msg.from === "system") {
+    return (
+      <div className="flex items-center gap-3 my-5">
+        <div className="flex-1 h-px bg-[rgba(128,168,255,0.18)]" />
+        <div className="flex items-center gap-1.5 bg-[#EFF4FF] text-[#3B5BA6] text-[11px] font-medium px-3 py-1.5 rounded-full border border-[rgba(128,168,255,0.25)] flex-shrink-0 max-w-[70%] text-center">
+          <Users size={10} className="flex-shrink-0" />
+          <span className="leading-relaxed">{msg.text}</span>
+        </div>
+        <div className="flex-1 h-px bg-[rgba(128,168,255,0.18)]" />
       </div>
     );
   }
@@ -40,7 +56,7 @@ export function Bubble({ msg, cx }) {
         <div
           className={`px-4 py-2.5 text-[13px] leading-relaxed ${isAgent ? "bg-gradient-to-br from-[#80A8FF] to-[#7498EE] text-white rounded-2xl rounded-tr-sm shadow-[0_2px_12px_rgba(128,168,255,0.28)]" : "bg-white text-[#18182E] rounded-2xl rounded-tl-sm border border-[rgba(128,128,200,0.14)] shadow-sm"}`}
         >
-          {msg.text}
+          {renderMessageText(msg.text)}
         </div>
         <div
           className={`flex items-center gap-1.5 mt-1 ${isAgent ? "flex-row-reverse" : ""}`}

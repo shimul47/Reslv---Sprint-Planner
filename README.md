@@ -146,7 +146,7 @@ CALENDAR_API_KEY=
 
 # Google Gemini (customer-facing AI chatbot)
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.6-flash
 ```
 
 ## Roadmap

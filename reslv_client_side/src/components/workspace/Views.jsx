@@ -221,8 +221,9 @@ export function TicketDetail({
 
   const handleSend = async () => {
     if (!msg.trim() || !onSendMessage) return;
-    await onSendMessage(ticket.id, msg.trim());
-    setMsg("");
+    const text = msg.trim();
+    setMsg(""); // clear immediately — don't wait on the round trip to feel responsive
+    await onSendMessage(ticket.id, text);
   };
 
   const handleComposerKeyDown = (e) => {

@@ -4,7 +4,10 @@ const messageSchema = new mongoose.Schema(
   {
     from: {
       type: String,
-      enum: ["customer", "agent", "internal"],
+      // "internal" = private staff note, hidden from the customer. "system"
+      // = a visible automated status line (e.g. a chatbot handoff) shown to
+      // everyone in the main thread — different audience, different meaning.
+      enum: ["customer", "agent", "internal", "system"],
       required: true,
     },
     text: {

@@ -9,4 +9,4 @@ if (!process.env.GEMINI_API_KEY) {
 export const gemini = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || "",
 });
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
