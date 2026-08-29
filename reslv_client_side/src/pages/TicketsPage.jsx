@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, BarChart2, CheckCircle, Inbox, Lock, Plus, Settings, Star } from "lucide-react";
+import { BarChart2, CheckCircle, Inbox, Lock, Plus, Settings, Star } from "lucide-react";
 import { io } from "socket.io-client";
 import api from "../api/axios.js";
 import { AuthContext } from "../context/AuthContext.jsx";
@@ -16,7 +16,7 @@ export default function TicketsPage() {
   const reportsLocked = !isSuperAdmin && !plan?.features?.reports;
 
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [counts, setCounts] = useState({ unread: 0, escalated: 0, resolved: 0 });
+  const [counts, setCounts] = useState({ unread: 0, resolved: 0 });
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -25,7 +25,6 @@ export default function TicketsPage() {
         const tickets = response.data?.tickets || [];
         setCounts({
           unread: tickets.reduce((sum, t) => sum + (t.unreadCount || 0), 0),
-          escalated: tickets.filter((t) => t.status === "escalated").length,
           resolved: tickets.filter((t) => t.status === "resolved").length,
         });
       } catch (error) {
@@ -52,14 +51,6 @@ export default function TicketsPage() {
 
   const TABS = [
     { id: "inbox", label: "Inbox", path: "inbox", icon: <Inbox size={14} />, badge: counts.unread },
-    {
-      id: "escalations",
-      label: "Escalations",
-      path: "escalations",
-      icon: <ArrowRight size={14} />,
-      badge: counts.escalated,
-      warn: true,
-    },
     {
       id: "resolved",
       label: "Resolved",

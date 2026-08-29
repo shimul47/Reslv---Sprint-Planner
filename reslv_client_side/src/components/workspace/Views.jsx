@@ -3,43 +3,23 @@ import {
   Activity,
   BarChart2,
   CheckCircle,
-  Clock,
   Inbox,
-  Globe,
-  Mail,
   MoreHorizontal,
   Paperclip,
   Search,
   Send,
-  MessageSquare,
   Settings,
-  Phone,
   User,
   X,
 } from "lucide-react";
-import { ESC_STEPS, TKT } from "../../data/workspaceData.js";
-import { Av, SLABar, SevBadge, StatusBadge, Tag } from "./Atoms.jsx";
-import { Bubble, EscalationStepper } from "./Conversation.jsx";
+import { TKT } from "../../data/workspaceData.js";
+import { Av, SLABar, SevBadge, StatusBadge, channelIcon } from "./Atoms.jsx";
+import { Bubble } from "./Conversation.jsx";
 import { CustomerPanel } from "./Overlays.jsx";
+import CreateSprintTaskModal from "./CreateSprintTaskModal.jsx";
 import api from "../../api/axios.js";
 import { io } from "socket.io-client";
 import { AuthContext } from "../../context/AuthContext.jsx";
-
-function channelIcon(channel) {
-  const props = { size: 12 };
-  switch (channel) {
-    case "email":
-      return <Mail {...props} />;
-    case "chat":
-      return <MessageSquare {...props} />;
-    case "phone":
-      return <Phone {...props} />;
-    case "web":
-      return <Globe {...props} />;
-    default:
-      return null;
-  }
-}
 
 export function TicketRow({ ticket, selected, onClick }) {
   const hasUnread = (ticket.unreadCount || 0) > 0;
@@ -172,9 +152,9 @@ export function TicketDetail({
   onEscalate,
   onResolve,
   onReopen,
-  onPriorityChange,
   onSaveNote,
   onAssign,
+  onRefresh,
 }) {
   const { user } = useContext(AuthContext);
   const [tab, setTab] = useState("thread");
@@ -194,10 +174,12 @@ export function TicketDetail({
 
   const isResolved = ticket.status === "resolved";
   const internalNotes = ticket.thread.filter((m) => m.from === "internal");
+  const isAdmin =
+    user?.roles?.some((r) => ["admin", "superadmin"].includes(r)) ?? false;
   const canManageAssignment =
     !ticket.assignedTo ||
     String(ticket.assignedTo) === String(user?.id) ||
-    (user?.roles?.some((r) => ["admin", "superadmin"].includes(r)) ?? false);
+    isAdmin;
 
   useEffect(() => {
     setTab("thread");
@@ -212,16 +194,13 @@ export function TicketDetail({
 
   const tabs = [
     { id: "thread", label: "Thread" },
-    { id: "chat", label: "Live Chat" },
     { id: "escalation", label: "Escalation" },
     { id: "notes", label: "Internal Notes" },
   ];
-  const btnGhost =
-    "px-3 py-1.5 text-[12px] font-semibold text-[#6B6B90] border border-[rgba(128,128,200,0.2)] rounded-xl hover:border-[#80A8FF] hover:text-[#5B5BD6] transition-all";
 
   const handleSend = async () => {
-    if (!msg.trim() || !onSendMessage) return;
     const text = msg.trim();
+    if (!text || !onSendMessage) return;
     setMsg(""); // clear immediately — don't wait on the round trip to feel responsive
     await onSendMessage(ticket.id, text);
   };
@@ -235,89 +214,14 @@ export function TicketDetail({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 px-6 py-4 border-b border-[rgba(128,128,200,0.1)] bg-white">
+      <div className="flex-shrink-0 px-6 py-2.5 border-b border-[rgba(128,128,200,0.1)] bg-white">
         <div className="flex items-start gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <code className="text-[11px] text-[#B0B0CC] font-mono">
-                {ticket.id}
-              </code>
-              <StatusBadge status={ticket.status} />
-              <SevBadge sev={ticket.severity} />
-              <select
-                value={ticket.severity}
-                onChange={(e) => onPriorityChange?.(ticket.id, e.target.value)}
-                className="text-[10px] font-bold uppercase tracking-wide bg-white border border-[rgba(128,128,200,0.2)] rounded-full px-2 py-0.5 cursor-pointer focus:outline-none text-[#6B6B90]"
-                title="Change priority"
-              >
-                {["low", "medium", "high", "critical"].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              {ticket.slaMins === 0 && ticket.status !== "resolved" && (
-                <span className="flex items-center gap-1 text-[11px] font-bold text-[#CC1836] bg-[#FFEEF1] px-2 py-0.5 rounded-full animate-pulse">
-                  <Clock size={10} /> SLA BREACH
-                </span>
-              )}
-            </div>
             <h2 className="text-[15px] font-semibold text-[#18182E] leading-snug">
               {ticket.subject}
             </h2>
-            <div className="flex items-center gap-1.5 mt-1 text-[12px] text-[#6B6B90]">
-              <Av
-                initials={ticket.customer.initials}
-                hue={ticket.customer.hue}
-                size="xs"
-              />
-              <span className="font-semibold text-[#18182E]">
-                {ticket.customer.name}
-              </span>
-              {ticket.customer.company && (
-                <>
-                  <span className="text-[#D8D8EE]">·</span>
-                  <span>{ticket.customer.company}</span>
-                </>
-              )}
-              {ticket.customer.plan && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#EEF0FF] text-[#5B5BD6]">
-                  {ticket.customer.plan}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-1.5 text-[12px] text-[#9898B8] flex-wrap">
-              <span className="flex items-center gap-1">
-                {channelIcon(ticket.channel)}
-                <span className="capitalize">{ticket.channel}</span>
-              </span>
-              <span className="text-[#D8D8EE]">·</span>
-              <span>
-                Assigned to{" "}
-                <span className="font-semibold text-[#5B5BD6]">
-                  {ticket.assignee}
-                </span>
-              </span>
-              {ticket.status !== "resolved" && (
-                <>
-                  <span className="text-[#D8D8EE]">·</span>
-                  <SLABar
-                    mins={ticket.slaMins}
-                    total={ticket.slaTotal}
-                    breached={ticket.slaMins === 0}
-                  />
-                </>
-              )}
-            </div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 relative">
-            <button
-              className={btnGhost}
-              disabled={isResolved}
-              onClick={() => onEscalate?.(ticket.id)}
-            >
-              Escalate
-            </button>
             {isResolved ? (
               <button
                 onClick={() => onReopen?.(ticket.id)}
@@ -367,14 +271,9 @@ export function TicketDetail({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-          {ticket.tags.map((t) => (
-            <Tag key={t} label={t} />
-          ))}
-        </div>
       </div>
 
-      <div className="flex-shrink-0 flex items-center gap-0.5 px-5 py-2 border-b border-[rgba(128,128,200,0.1)] bg-white">
+      <div className="flex-shrink-0 flex items-center gap-0.5 px-5 py-1.5 border-b border-[rgba(128,128,200,0.1)] bg-white">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -382,16 +281,13 @@ export function TicketDetail({
             className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg transition-colors ${tab === t.id ? "bg-[#EEF0FF] text-[#5B5BD6]" : "text-[#A8A8C0] hover:text-[#6B6B90]"}`}
           >
             {t.label}
-            {t.id === "chat" && (
-              <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-[#3DB870] inline-block" />
-            )}
           </button>
         ))}
       </div>
 
       {tab === "thread" && (
         <>
-          <div className="flex-1 overflow-y-auto px-6 py-5 bg-[#F7F7FF]">
+          <div className="flex-1 overflow-y-auto px-8 py-6 bg-[#F7F7FF]">
             {ticket.thread.map((m) => (
               <Bubble key={m.id} msg={m} cx={ticket.customer} />
             ))}
@@ -424,94 +320,32 @@ export function TicketDetail({
         </>
       )}
 
-      {tab === "chat" && (
-        <>
-          <div className="flex-shrink-0 flex items-center gap-3 px-5 py-2.5 bg-white border-b border-[rgba(128,128,200,0.1)]">
-            <Av
-              initials={ticket.customer.initials}
-              hue={ticket.customer.hue}
-              size="sm"
-            />
-            <div>
-              <p className="text-[13px] font-semibold text-[#18182E] leading-none">
-                {ticket.customer.name}
-              </p>
-              <p className="text-[11px] text-[#3DB870] flex items-center gap-1 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#3DB870] animate-pulse" />
-                Online now
-              </p>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto px-6 py-5 bg-[#F7F7FF]">
-            {ticket.thread
-              .filter((m) => m.from !== "internal")
-              .map((m) => (
-                <Bubble key={m.id} msg={m} cx={ticket.customer} />
-              ))}
-            <div ref={endRef} />
-          </div>
-          <div className="flex-shrink-0 px-4 py-3 border-t border-[rgba(128,128,200,0.1)] bg-white">
-            <div className="flex items-end gap-2 bg-[#F7F7FF] rounded-2xl border border-[rgba(128,128,200,0.16)] px-4 py-3 focus-within:border-[#80A8FF] focus-within:ring-2 focus-within:ring-[rgba(128,168,255,0.1)] transition-all">
-              <textarea
-                value={msg}
-                onChange={(e) => setMsg(e.target.value)}
-                onKeyDown={handleComposerKeyDown}
-                placeholder="Message the customer directly… (Enter to send, Shift+Enter for a new line)"
-                rows={2}
-                className="flex-1 text-[13px] text-[#18182E] bg-transparent placeholder-[#C8C8E0] resize-none focus:outline-none leading-relaxed"
-              />
-              <div className="flex items-center gap-2 flex-shrink-0 mb-0.5">
-                <button className="text-[#C8C8E0] hover:text-[#9898B8] transition-colors">
-                  <Paperclip size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${msg ? "bg-[#80A8FF] text-white hover:bg-[#6B98EE] shadow-sm" : "bg-[#EEF0FF] text-[#C8C8E0]"}`}
-                >
-                  <Send size={13} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
       {tab === "escalation" && (
         <div className="flex-1 overflow-y-auto px-6 py-6 bg-[#F7F7FF] space-y-4">
-          <div className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-6 shadow-sm">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h3 className="text-[14px] font-semibold text-[#18182E]">
-                  Escalation Pipeline
-                </h3>
-                <p className="text-[12px] text-[#9898B8] mt-0.5">
-                  {ticket.escalationStep === 0
-                    ? "No active escalation"
-                    : `Step ${ticket.escalationStep + 1} of 4 — ${ESC_STEPS[ticket.escalationStep].role}`}
-                </p>
-              </div>
-              {ticket.escalationStep > 0 && (
-                <span className="text-[11px] px-2.5 py-1 bg-[#FFF2E5] text-[#BB5E18] rounded-full font-bold">
-                  Active
-                </span>
-              )}
-            </div>
-            <EscalationStepper step={ticket.escalationStep} />
-          </div>
-          {ticket.escalationStep > 0 && (
+          {ticket.status === "escalated" && (
             <div className="bg-white rounded-2xl border border-[rgba(245,160,35,0.16)] p-4 shadow-sm">
-              <p className="text-[11px] font-bold text-[#A06618] uppercase tracking-wider mb-2">
-                Escalation Reason
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-bold text-[#A06618] uppercase tracking-wider">
+                  Escalation Reason
+                </p>
+                {ticket.escalation?.suggestedTeamName && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-[#EEF0FF] text-[#5B5BD6] rounded-full">
+                    Suggested team: {ticket.escalation.suggestedTeamName}
+                  </span>
+                )}
+              </div>
               <p className="text-[13px] text-[#6B6B90] leading-relaxed">
-                SLA breach risk — webhook delivery failure affecting billing
-                pipeline for a high-value enterprise customer (
-                {ticket.customer.arr}). Infrastructure team has been notified
-                and is investigating a potential Redis saturation event on the
-                webhook worker queue.
+                {ticket.escalation?.summary ||
+                  "AI summary not available yet — escalate the ticket to generate one."}
               </p>
             </div>
+          )}
+          {isAdmin && ticket.status === "escalated" && (
+            <SprintTaskCard
+              ticket={ticket}
+              onResolve={onResolve}
+              onRefresh={onRefresh}
+            />
           )}
           <div className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-4 shadow-sm">
             <p className="text-[11px] font-bold text-[#B8B8D0] uppercase tracking-wider mb-3">
@@ -519,7 +353,12 @@ export function TicketDetail({
             </p>
             <div className="flex gap-2">
               <button
-                disabled={isResolved}
+                disabled={isResolved || !ticket.assignedTo}
+                title={
+                  !ticket.assignedTo
+                    ? "Assign the ticket to an agent before escalating"
+                    : undefined
+                }
                 onClick={() => onEscalate?.(ticket.id)}
                 className="flex-1 py-2 text-[13px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-xl hover:bg-[#E4E6FF] transition-colors disabled:opacity-50"
               >
@@ -615,6 +454,70 @@ export function TicketDetail({
     </div>
   );
 }
+
+// Admin-only card in the escalation tab: walks the ticket through
+// "no sprint task yet" -> "with employee" -> "done, ready to resolve".
+// Ticket lifecycle state here is derived from linkedTask/escalation fields
+// rather than a new ticket status, so nothing else about the ticket model
+// changes.
+function SprintTaskCard({ ticket, onResolve, onRefresh }) {
+  const [showModal, setShowModal] = useState(false);
+  const task = ticket.linkedTask;
+
+  return (
+    <div className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-4 shadow-sm">
+      <p className="text-[11px] font-bold text-[#B8B8D0] uppercase tracking-wider mb-3">
+        Sprint Task
+      </p>
+
+      {!task && (
+        <button
+          onClick={() => setShowModal(true)}
+          className="w-full py-2 text-[13px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-xl hover:bg-[#E4E6FF] transition-colors"
+        >
+          Create Sprint Task
+        </button>
+      )}
+
+      {task && task.status !== "done" && (
+        <p className="text-[13px] text-[#6B6B90] leading-relaxed">
+          In progress — assigned to{" "}
+          <span className="font-semibold text-[#18182E]">
+            {task.assigneeName || "Unassigned"}
+          </span>
+          .
+        </p>
+      )}
+
+      {task && task.status === "done" && (
+        <div className="space-y-3">
+          <p className="text-[13px] text-[#6B6B90] leading-relaxed">
+            {ticket.escalation?.completionSummary ||
+              "The linked sprint task has been marked done."}
+          </p>
+          <button
+            onClick={() => onResolve?.(ticket.id)}
+            className="w-full py-2 text-[13px] font-semibold text-[#228050] bg-[#EDFAF2] rounded-xl hover:bg-[#D5F5E3] transition-colors"
+          >
+            Mark Resolved
+          </button>
+        </div>
+      )}
+
+      {showModal && (
+        <CreateSprintTaskModal
+          ticket={ticket}
+          onClose={() => setShowModal(false)}
+          onCreated={() => {
+            setShowModal(false);
+            onRefresh?.();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function useTicketFeed(selectedTicketId) {
   const { user } = useContext(AuthContext);
   const [tickets, setTickets] = useState([]); // Initialized as completely empty
@@ -669,7 +572,9 @@ export function useTicketFeed(selectedTicketId) {
           ...prev[idx],
           thread: [...prev[idx].thread, message],
           lastMsg: message.text,
-          unreadCount: bumpsUnread ? (prev[idx].unreadCount || 0) + 1 : prev[idx].unreadCount,
+          unreadCount: bumpsUnread
+            ? (prev[idx].unreadCount || 0) + 1
+            : prev[idx].unreadCount,
         };
         // Move it to the top, same as the backend's most-recent-activity sort.
         const next = prev.slice();
@@ -687,8 +592,12 @@ export function useTicketFeed(selectedTicketId) {
 
   return { tickets, refreshTickets };
 }
+
 export function InboxView({ mode = "active" }) {
   const isResolvedMode = mode === "resolved";
+  const { user } = useContext(AuthContext);
+  const isAdmin =
+    user?.roles?.some((r) => ["admin", "superadmin"].includes(r)) ?? false;
   const [selectedId, setSelectedId] = useState(null);
   const { tickets, refreshTickets } = useTicketFeed(selectedId);
 
@@ -696,6 +605,36 @@ export function InboxView({ mode = "active" }) {
   const [statusF, setStatusF] = useState("all");
   const [channelF, setChannelF] = useState("all");
   const [showCX, setShowCX] = useState(false);
+  // Admin-only: default the inbox down to tickets an agent has escalated,
+  // instead of every ticket in the company — off (escalated-only) by
+  // default, remembered per admin across sessions on this browser.
+  const showAllKey = user?.id ? `escalationInboxShowAll:${user.id}` : null;
+  const [showAllForAdmin, setShowAllForAdmin] = useState(false);
+  // user loads asynchronously after mount, so re-read the persisted
+  // preference once we actually know which admin this is.
+  useEffect(() => {
+    if (!showAllKey) return;
+    try {
+      setShowAllForAdmin(localStorage.getItem(showAllKey) === "true");
+    } catch {
+      // localStorage unavailable — falls back to the default (off).
+    }
+  }, [showAllKey]);
+  const toggleShowAllForAdmin = () => {
+    setShowAllForAdmin((prev) => {
+      const next = !prev;
+      if (showAllKey) {
+        try {
+          localStorage.setItem(showAllKey, String(next));
+        } catch {
+          // localStorage unavailable (private browsing, etc.) — toggle still
+          // works for this session, it just won't persist.
+        }
+      }
+      return next;
+    });
+  };
+  const escalationFilterActive = isAdmin && !isResolvedMode && !showAllForAdmin;
 
   // Opening a ticket clears its unread badge/bold state, Facebook-style.
   // The call is cheap and idempotent (no-op server-side once already read).
@@ -710,9 +649,12 @@ export function InboxView({ mode = "active" }) {
 
   // Resolved tickets have their own dedicated section — the active inbox
   // never shows them, regardless of the status filter chosen there.
-  const scoped = tickets.filter((t) =>
-    isResolvedMode ? t.status === "resolved" : t.status !== "resolved",
-  );
+  const scoped = tickets.filter((t) => {
+    if (isResolvedMode) return t.status === "resolved";
+    if (escalationFilterActive)
+      return t.status === "escalated" && Boolean(t.assignedTo);
+    return t.status !== "resolved";
+  });
 
   // Filter directly from the dynamic tickets array
   const filtered = scoped.filter((t) => {
@@ -799,6 +741,30 @@ export function InboxView({ mode = "active" }) {
     <div className="flex flex-1 h-full overflow-hidden">
       <div className="w-[300px] flex-shrink-0 border-r border-[rgba(128,128,200,0.1)] flex flex-col bg-white overflow-hidden">
         <div className="px-3 pt-3 pb-2 space-y-2 border-b border-[rgba(128,128,200,0.08)]">
+          {isAdmin && !isResolvedMode && (
+            <button
+              onClick={toggleShowAllForAdmin}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#F7F7FF] border border-[rgba(128,128,200,0.14)]"
+            >
+              <span className="text-[11px] font-semibold text-[#6B6B90]">
+                {showAllForAdmin
+                  ? "Showing all tickets"
+                  : "Showing escalated tickets only"}
+              </span>
+
+              <span
+                className={`relative w-8 h-[18px] rounded-full transition-colors flex-shrink-0 ${
+                  showAllForAdmin ? "bg-[#5B5BD6]" : "bg-[#D8D8EE]"
+                }`}
+              >
+                <span
+                  className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                    showAllForAdmin ? "left-[16px]" : "left-[2px]"
+                  }`}
+                />
+              </span>
+            </button>
+          )}
           <div className="flex items-center gap-2 bg-[#F7F7FF] rounded-xl px-3 py-2 border border-[rgba(128,128,200,0.14)]">
             <Search size={13} className="text-[#C8C8E0] flex-shrink-0" />
             <input
@@ -874,14 +840,18 @@ export function InboxView({ mode = "active" }) {
                 {scoped.length === 0
                   ? isResolvedMode
                     ? "No resolved tickets yet"
-                    : "No tickets yet"
+                    : escalationFilterActive
+                      ? "No escalated tickets"
+                      : "No tickets yet"
                   : "No tickets match"}
               </p>
               <p className="text-[12px] text-[#C0C0D8] mt-1">
                 {scoped.length === 0
                   ? isResolvedMode
                     ? "Tickets marked resolved will show up here."
-                    : "When customers reach out, they will appear here."
+                    : escalationFilterActive
+                      ? "Tickets an agent escalates to admin will show up here. Toggle above to see all tickets."
+                      : "When customers reach out, they will appear here."
                   : "Try adjusting your search or filters"}
               </p>
               {scoped.length > 0 && (
@@ -912,16 +882,18 @@ export function InboxView({ mode = "active" }) {
               onEscalate={handleEscalate}
               onResolve={handleResolve}
               onReopen={handleReopen}
-              onPriorityChange={handlePriorityChange}
               onSaveNote={handleSaveNote}
               onAssign={handleAssign}
+              onRefresh={refreshTickets}
             />
           </div>
           {showCX && (
             <CustomerPanel
               cx={selected.customer}
+              ticket={selected}
               tickets={tickets}
               onClose={() => setShowCX(false)}
+              onPriorityChange={handlePriorityChange}
             />
           )}
         </div>
@@ -938,14 +910,18 @@ export function InboxView({ mode = "active" }) {
             {scoped.length === 0
               ? isResolvedMode
                 ? "No resolved tickets"
-                : "Your inbox is empty"
+                : escalationFilterActive
+                  ? "No escalated tickets"
+                  : "Your inbox is empty"
               : "Select a ticket"}
           </p>
           <p className="text-[13px] text-[#9898B8] mt-1 max-w-[220px] leading-relaxed">
             {scoped.length === 0
               ? isResolvedMode
                 ? "Resolved conversations will show up here for reference."
-                : "You're all caught up! New inquiries will appear automatically."
+                : escalationFilterActive
+                  ? "Tickets an agent escalates to admin will show up here."
+                  : "You're all caught up! New inquiries will appear automatically."
               : "Choose a ticket from the list to view the full conversation."}
           </p>
         </div>
@@ -956,110 +932,4 @@ export function InboxView({ mode = "active" }) {
 
 export function ResolvedView() {
   return <InboxView mode="resolved" />;
-}
-
-export function EscalationsView() {
-  const { tickets } = useTicketFeed();
-  const sourceTickets = tickets.length ? tickets : TKT;
-  const escalated = sourceTickets.filter((t) => t.status === "escalated");
-  const all = sourceTickets.filter(
-    (t) => t.escalationStep > 0 || t.status === "escalated",
-  );
-  return (
-    <div className="flex-1 overflow-y-auto px-8 py-7">
-      <div className="mb-6">
-        <h1 className="text-[18px] font-semibold text-[#18182E]">
-          Escalation Pipeline
-        </h1>
-        <p className="text-[13px] text-[#9898B8] mt-1">
-          {escalated.length} active · tracking Agent → Admin → Team Lead →
-          Member
-        </p>
-      </div>
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        {ESC_STEPS.map((step, i) => {
-          const count = all.filter((t) => t.escalationStep === i).length;
-          return (
-            <div
-              key={i}
-              className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-4 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-7 h-7 rounded-full bg-[#EEF0FF] flex items-center justify-center text-[11px] font-bold text-[#5B5BD6]">
-                  {i + 1}
-                </div>
-                <span className="text-[11px] font-bold text-[#B0B0CC]">
-                  {count} ticket{count !== 1 ? "s" : ""}
-                </span>
-              </div>
-              <p className="text-[13px] font-semibold text-[#18182E]">
-                {step.role}
-              </p>
-              <p className="text-[11px] text-[#A8A8C0] mt-0.5">{step.name}</p>
-            </div>
-          );
-        })}
-      </div>
-      {escalated.map((ticket) => (
-        <div
-          key={ticket.id}
-          className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] shadow-sm mb-5 overflow-hidden"
-        >
-          <div className="flex items-start justify-between px-6 py-4 border-b border-[rgba(128,128,200,0.08)]">
-            <div className="flex items-start gap-3">
-              <Av
-                initials={ticket.customer.initials}
-                hue={ticket.customer.hue}
-              />
-              <div>
-                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <code className="text-[11px] text-[#B0B0CC] font-mono">
-                    {ticket.id}
-                  </code>
-                  <StatusBadge status={ticket.status} />
-                  <SevBadge sev={ticket.severity} />
-                  {ticket.slaMins === 0 && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-[#CC1836] bg-[#FFEEF1] px-2 py-0.5 rounded-full">
-                      <Clock size={10} /> SLA BREACH
-                    </span>
-                  )}
-                </div>
-                <p className="text-[14px] font-semibold text-[#18182E]">
-                  {ticket.subject}
-                </p>
-                <p className="text-[12px] text-[#9898B8] mt-0.5">
-                  {ticket.customer.company} · {ticket.customer.name} ·{" "}
-                  {ticket.customer.arr}
-                </p>
-              </div>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-[12px] font-semibold text-[#6B6B90]">
-                {ticket.assignee}
-              </p>
-              <SLABar
-                mins={ticket.slaMins}
-                total={ticket.slaTotal}
-                breached={ticket.slaMins === 0}
-              />
-            </div>
-          </div>
-          <div className="px-6 py-5">
-            <EscalationStepper step={ticket.escalationStep} />
-          </div>
-        </div>
-      ))}
-      {escalated.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#EDFAF2] flex items-center justify-center mb-4">
-            <CheckCircle size={28} className="text-[#3DB870]" />
-          </div>
-          <p className="text-[15px] font-semibold text-[#18182E]">All clear</p>
-          <p className="text-[13px] text-[#9898B8] mt-1">
-            No active escalations at the moment.
-          </p>
-        </div>
-      )}
-    </div>
-  );
 }

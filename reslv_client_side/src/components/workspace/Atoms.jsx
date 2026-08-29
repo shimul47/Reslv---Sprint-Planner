@@ -1,6 +1,22 @@
-import { Hash } from "lucide-react";
+import { Globe, Hash, Mail, MessageSquare, Phone } from "lucide-react";
 import { CHURN_CFG, SEV_CFG, S_CFG } from "../../data/workspaceData.js";
 import { slaColor, slaText, slaWidth } from "../../utils/workspaceUtils.js";
+
+export function channelIcon(channel) {
+  const props = { size: 12 };
+  switch (channel) {
+    case "email":
+      return <Mail {...props} />;
+    case "chat":
+      return <MessageSquare {...props} />;
+    case "phone":
+      return <Phone {...props} />;
+    case "web":
+      return <Globe {...props} />;
+    default:
+      return null;
+  }
+}
 
 export function Av({ initials, hue = 252, size = "sm", ring = false }) {
   const sz = {

@@ -173,6 +173,11 @@ export default function MyTasksView() {
                         className="relative rounded-tl-sm rounded-tr-sm p-3 text-neutral-900 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_6px_10px_rgba(0,0,0,0.04)] before:content-[''] before:absolute before:left-0 before:right-0 before:bottom-0 before:h-2 before:bg-inherit before:rounded-bl-[40%_12px] before:rounded-br-[40%_12px] before:shadow-[0_4px_5px_rgba(0,0,0,0.15)] before:translate-y-[2px]"
                       >
                         <p className="font-semibold text-sm mb-1.5 relative z-10">{task.title}</p>
+                        {task.sourceTicketId?.ticketNumber && (
+                          <p className="text-[10px] font-bold opacity-60 mb-1.5 relative z-10">
+                            From ticket #{task.sourceTicketId.ticketNumber}
+                          </p>
+                        )}
                         {task.description && (
                           <p className="text-[11px] opacity-70 mb-2 relative z-10 line-clamp-2">
                             {task.description}

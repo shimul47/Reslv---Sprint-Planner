@@ -132,9 +132,31 @@ const ticketSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    escalationStep: {
-      type: Number,
-      default: 0,
+    // Populated when an agent escalates an assigned ticket to admin: an
+    // AI-drafted summary of the issue + suggested team, and later (once the
+    // linked sprint task is done) an AI-drafted summary of the work done.
+    escalation: {
+      summary: { type: String, default: "" },
+      suggestedSegmentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Segment",
+        default: null,
+      },
+      suggestedTeamName: { type: String, default: "" },
+      generatedAt: { type: Date, default: null },
+      completionSummary: { type: String, default: "" },
+      completionGeneratedAt: { type: Date, default: null },
+      _id: false,
+    },
+    // Set once an admin turns this escalated ticket into a sprint task —
+    // absence/presence plus the linked Task's status is how the admin
+    // escalation inbox derives "awaiting review" vs "with employee" vs
+    // "ready to resolve", instead of adding new ticket status values.
+    linkedTaskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Task",
+      default: null,
+      index: true,
     },
     slaMins: {
       type: Number,

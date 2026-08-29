@@ -233,9 +233,15 @@ export const getFeedbackDashboard = async (req, res) => {
     });
 
     // ── Feedback Over Time (last 30 days) ──
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const FEEDBACK_WINDOW_DAYS = 30;
+    const feedbackWindowStart = new Date();
+    feedbackWindowStart.setUTCHours(0, 0, 0, 0);
+    feedbackWindowStart.setUTCDate(
+      feedbackWindowStart.getUTCDate() - (FEEDBACK_WINDOW_DAYS - 1),
+    );
+
     const timeAgg = await Feedback.aggregate([
-      { $match: { ...companyMatch, createdAt: { $gte: thirtyDaysAgo } } },
+      { $match: { ...companyMatch, createdAt: { $gte: feedbackWindowStart } } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -243,13 +249,23 @@ export const getFeedbackDashboard = async (req, res) => {
           avgRating: { $avg: "$rating" },
         },
       },
-      { $sort: { _id: 1 } },
     ]);
-    const feedbackOverTime = timeAgg.map((d) => ({
-      date: d._id,
-      count: d.count,
-      avgRating: Math.round(d.avgRating * 10) / 10,
-    }));
+    const timeByDay = new Map(timeAgg.map((d) => [d._id, d]));
+
+    // Zero-fill every day in the window so the chart reflects a true
+    // continuous 30-day timeline instead of only the days that had feedback.
+    const feedbackOverTime = [];
+    for (let i = 0; i < FEEDBACK_WINDOW_DAYS; i++) {
+      const day = new Date(feedbackWindowStart);
+      day.setUTCDate(day.getUTCDate() + i);
+      const key = day.toISOString().slice(0, 10);
+      const entry = timeByDay.get(key);
+      feedbackOverTime.push({
+        date: key,
+        count: entry?.count || 0,
+        avgRating: entry ? Math.round(entry.avgRating * 10) / 10 : 0,
+      });
+    }
 
     // ── Recent Feedback (latest 15) ──
     const recent = await Feedback.find(companyMatch)

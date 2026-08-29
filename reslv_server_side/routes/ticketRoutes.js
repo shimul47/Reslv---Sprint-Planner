@@ -14,6 +14,7 @@ import {
   getTicketSettings,
   updateTicketSettings,
   getTicketReports,
+  getEscalations,
   AGENT_ROLES,
 } from "../controllers/ticketApiController.js";
 import { requireAuth, requireRoles } from "../middleware/authMiddleware.js";
@@ -28,6 +29,7 @@ router.get("/team/agents", requireRoles(AGENT_ROLES), listAssignableAgents);
 router.get("/settings", requireRoles(["admin", "superadmin"]), getTicketSettings);
 router.patch("/settings", requireRoles(["admin", "superadmin"]), updateTicketSettings);
 router.get("/reports/summary", requireRoles(["admin", "superadmin"]), getTicketReports);
+router.get("/reports/escalations", requireRoles(["admin", "superadmin"]), getEscalations);
 
 router.get("/", getTickets);
 router.get("/:ticketNumber", getTicket);

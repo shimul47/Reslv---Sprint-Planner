@@ -75,6 +75,15 @@ const taskSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    // Set when this task was created from an escalated support ticket
+    // (see ticketApiController's escalation flow) — lets the employee see
+    // "from ticket #…" and lets completeTask notify that ticket's admin.
+    sourceTicketId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Ticket",
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true },
 );

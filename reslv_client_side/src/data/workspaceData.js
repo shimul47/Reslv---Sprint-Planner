@@ -108,7 +108,6 @@ export const TKT = [
     slaTotal: 240,
     lastMsg: "We've tried everything on our end. This is blocking production.",
     tags: ["integration", "webhook", "billing"],
-    escalationStep: 2,
     ts: "10:04 AM",
     thread: [
       {
@@ -160,7 +159,6 @@ export const TKT = [
     lastMsg:
       "The export works in the dashboard preview but not from the scheduled job.",
     tags: ["reports", "csv", "exports"],
-    escalationStep: 1,
     ts: "09:42 AM",
     thread: [
       {
@@ -197,7 +195,6 @@ export const TKT = [
     lastMsg:
       "I migrated phones this morning and the backup codes were rejected.",
     tags: ["auth", "mfa", "security"],
-    escalationStep: 0,
     ts: "08:15 AM",
     thread: [
       {
@@ -228,7 +225,6 @@ export const TKT = [
     lastMsg:
       "Thanks, the corrected invoice came through and the accounting team is happy.",
     tags: ["billing", "invoices"],
-    escalationStep: 0,
     ts: "Yesterday",
     thread: [
       {
@@ -259,7 +255,6 @@ export const TKT = [
     lastMsg:
       "We can receive the message, but the invite itself is getting filtered.",
     tags: ["delivery", "email", "onboarding"],
-    escalationStep: 0,
     ts: "Yesterday",
     thread: [
       {
@@ -290,7 +285,6 @@ export const TKT = [
     lastMsg:
       "The numbers are still lagging by nearly an hour across three dashboards.",
     tags: ["sync", "analytics", "cache"],
-    escalationStep: 3,
     ts: "2 days ago",
     thread: [
       {
@@ -352,25 +346,6 @@ export const NOTIFS = [
     text: "Marcus was assigned to TKT-4788.",
     time: "3h ago",
     unread: false,
-  },
-];
-
-export const ESC_STEPS = [
-  {
-    role: "Triage",
-    desc: "Confirm priority, collect context, route to the right queue.",
-  },
-  {
-    role: "Specialist",
-    desc: "Investigate the root cause and draft a fix or workaround.",
-  },
-  {
-    role: "Engineering",
-    desc: "Partner with product or infra for a technical resolution.",
-  },
-  {
-    role: "Leadership",
-    desc: "Coordinate customer communication and recovery timeline.",
   },
 ];
 

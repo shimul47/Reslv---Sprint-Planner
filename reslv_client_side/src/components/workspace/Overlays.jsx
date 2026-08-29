@@ -17,7 +17,7 @@ import {
   PLAN_CFG,
   TKT,
 } from "../../data/workspaceData.js";
-import { Av, StatusBadge } from "./Atoms.jsx";
+import { Av, SLABar, SevBadge, StatusBadge, Tag, channelIcon } from "./Atoms.jsx";
 import api from "../../api/axios.js";
 
 const NOTIF_ICON = {
@@ -34,7 +34,7 @@ function notifIcon(name) {
   return NOTIF_ICON[name] || null;
 }
 
-export function CustomerPanel({ cx, tickets = [], onClose }) {
+export function CustomerPanel({ cx, ticket, tickets = [], onClose, onPriorityChange }) {
   const churn = CHURN_CFG[cx.churn];
   const plan = PLAN_CFG[cx.plan];
   const rel = tickets.filter((t) => t.customer.id === cx.id).slice(0, 4);
@@ -53,6 +53,72 @@ export function CustomerPanel({ cx, tickets = [], onClose }) {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
+        {ticket && (
+          <div className="px-5 pt-5 pb-4 border-b border-[rgba(128,128,200,0.08)]">
+            <p className="text-[10px] font-bold text-[#B8B8D0] uppercase tracking-widest mb-3">
+              Ticket Details
+            </p>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <code className="text-[11px] text-[#B0B0CC] font-mono">
+                {ticket.id}
+              </code>
+              <StatusBadge status={ticket.status} />
+            </div>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <SevBadge sev={ticket.severity} />
+              {onPriorityChange && (
+                <select
+                  value={ticket.severity}
+                  onChange={(e) => onPriorityChange(ticket.id, e.target.value)}
+                  className="text-[10px] font-bold uppercase tracking-wide bg-white border border-[rgba(128,128,200,0.2)] rounded-full px-2 py-0.5 cursor-pointer focus:outline-none text-[#6B6B90]"
+                  title="Change priority"
+                >
+                  {["low", "medium", "high", "critical"].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {ticket.slaMins === 0 && ticket.status !== "resolved" && (
+                <span className="flex items-center gap-1 text-[11px] font-bold text-[#CC1836] bg-[#FFEEF1] px-2 py-0.5 rounded-full animate-pulse">
+                  <Clock size={10} /> SLA BREACH
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[12px] text-[#9898B8]">Channel</span>
+                <span className="flex items-center gap-1 text-[12px] text-[#18182E] capitalize">
+                  {channelIcon(ticket.channel)} {ticket.channel}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[12px] text-[#9898B8]">Assigned to</span>
+                <span className="text-[12px] font-semibold text-[#5B5BD6]">
+                  {ticket.assignee}
+                </span>
+              </div>
+              {ticket.status !== "resolved" && (
+                <div className="flex justify-between items-center">
+                  <span className="text-[12px] text-[#9898B8]">SLA</span>
+                  <SLABar
+                    mins={ticket.slaMins}
+                    total={ticket.slaTotal}
+                    breached={ticket.slaMins === 0}
+                  />
+                </div>
+              )}
+            </div>
+            {ticket.tags?.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-3">
+                {ticket.tags.map((t) => (
+                  <Tag key={t} label={t} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="px-5 pt-5 pb-4 border-b border-[rgba(128,128,200,0.08)]">
           <div className="flex items-center gap-3 mb-3">
             <Av initials={cx.initials} hue={cx.hue} size="lg" />
