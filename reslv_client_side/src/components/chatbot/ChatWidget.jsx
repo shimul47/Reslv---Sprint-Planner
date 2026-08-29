@@ -1,58 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { MessageCircle, X, Send, UserRound } from "lucide-react";
+import { X, Send } from "lucide-react";
+import chatbotMascot from "./chatbot.png";
+import { renderMessageText } from "../../utils/chatFormatting.jsx";
 
 // Self-contained floating chat widget for the customer support portal.
 // Deliberately uses plain fetch + its own socket connection (like
 // SupportPortalPage itself) rather than the shared `api` axios instance,
 // since that instance is wired to the staff/agent JWT in localStorage, not
 // this portal's per-company customer token.
-const LIST_MARKER = /^\s*(?:[-*]|\d+\.)\s+/;
-
-// Splits a line on **bold** markers into plain strings and <strong> nodes —
-// the model replies in light markdown, but the bubble isn't a full markdown
-// renderer, so only the bit customers actually notice (bold) is handled.
-function renderBoldSegments(line, keyPrefix) {
-  return line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") && part.endsWith("**") ? (
-      <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>
-    ) : (
-      <span key={`${keyPrefix}-${i}`}>{part}</span>
-    ),
-  );
-}
-
-// Gemini replies come back as loose markdown (paragraphs, "- " lists, blank
-// lines between them) which a plain {text} render collapses into one run-on
-// line — this turns it back into paragraphs/lists so it reads the way it
-// was written.
-function renderMessageText(text) {
-  const blocks = text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
-  if (blocks.length === 0) return null;
-
-  return blocks.map((block, bi) => {
-    const lines = block.split("\n").filter((l) => l.trim());
-    if (lines.every((l) => LIST_MARKER.test(l))) {
-      return (
-        <ul key={bi} className="list-disc list-inside space-y-1">
-          {lines.map((line, li) => (
-            <li key={li}>{renderBoldSegments(line.replace(LIST_MARKER, ""), `${bi}-${li}`)}</li>
-          ))}
-        </ul>
-      );
-    }
-    return (
-      <p key={bi}>
-        {lines.map((line, li) => (
-          <span key={li}>
-            {renderBoldSegments(line, `${bi}-${li}`)}
-            {li < lines.length - 1 && <br />}
-          </span>
-        ))}
-      </p>
-    );
-  });
-}
 
 export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHandoff }) {
   const [open, setOpen] = useState(false);
@@ -62,6 +18,7 @@ export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHand
   const [sending, setSending] = useState(false);
   const [handoffState, setHandoffState] = useState("none"); // none | connecting | done
   const [error, setError] = useState("");
+  const [guestLimitReached, setGuestLimitReached] = useState(false);
   const bottomRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -104,7 +61,7 @@ export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHand
       setMessages([
         {
           from: "bot",
-          text: "Hi! I'm the Reslv assistant. Ask me about your tickets, how support works, or how to use Reslv — and I'll connect you with a live agent if you need one.",
+          text: "Hi! I'm the Reslv Chatbot. Ask me about your tickets, how support works, or how to use Reslv — and I'll connect you with a live agent if you need one.",
         },
       ]);
     } catch (err) {
@@ -157,7 +114,10 @@ export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHand
         body: JSON.stringify({ text }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to send message.");
+      if (!res.ok) {
+        if (data.limitReached) setGuestLimitReached(true);
+        throw new Error(data.message || "Failed to send message.");
+      }
 
       setMessages((prev) => [...prev, { from: "bot", text: data.reply }]);
       if (data.handoffSuggested) {
@@ -172,24 +132,35 @@ export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHand
 
   if (!open) {
     return (
-      <button
-        onClick={openWidget}
-        aria-label="Open chat assistant"
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-cyan-500 hover:bg-cyan-400 text-black shadow-xl flex items-center justify-center transition-colors z-50 cursor-pointer"
-      >
-        <MessageCircle size={22} />
-      </button>
+      <div className="fixed bottom-28 right-6 z-50 flex flex-col items-end gap-1.5">
+        <div className="relative bg-[var(--accent-bg)] border border-[var(--accent-border)] text-[var(--text-h)] text-xs font-medium px-3 py-1.5 rounded-[var(--radius-md)] shadow-[var(--shadow)] whitespace-nowrap mr-2">
+          Need help? Just ask me anything 💬
+          <span className="absolute -bottom-[5px] right-7 w-2.5 h-2.5 bg-[var(--accent-bg)] border-b border-r border-[var(--accent-border)] rotate-45" />
+        </div>
+        <button
+          onClick={openWidget}
+          aria-label="Open chat assistant"
+          className="group relative w-20 h-24 flex flex-col items-center justify-start cursor-pointer"
+        >
+          <img
+            src={chatbotMascot}
+            alt="Reslv Chatbot mascot"
+            className="w-20 h-20 object-contain drop-shadow-xl transition-transform duration-300 animate-[chat-float_3s_ease-in-out_infinite] group-hover:[animation-play-state:paused] group-hover:scale-110"
+          />
+          <span className="w-9 h-2.5 rounded-[50%] bg-black blur-[3px] animate-[chat-float-shadow_3s_ease-in-out_infinite] group-hover:[animation-play-state:paused]" />
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-[340px] h-[460px] bg-[#0B0C10] border border-white/10 rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/30">
-        <div className="flex items-center gap-2 text-white/80 text-sm font-semibold">
-          <UserRound size={15} className="text-cyan-400" />
-          Reslv Assistant
+    <div className="fixed bottom-28 right-6 w-[340px] h-[460px] bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-xl)] shadow-[var(--shadow)] flex flex-col z-50 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-muted)]">
+        <div className="flex items-center gap-2 text-[var(--text-h)] text-sm font-semibold">
+          <img src={chatbotMascot} alt="" className="w-7 h-7 object-contain" />
+          Reslv Chatbot
         </div>
-        <button onClick={() => setOpen(false)} className="text-white/40 hover:text-white/80 cursor-pointer">
+        <button onClick={() => setOpen(false)} className="text-[var(--text)] opacity-50 hover:opacity-90 cursor-pointer">
           <X size={16} />
         </button>
       </div>
@@ -198,45 +169,65 @@ export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHand
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] leading-relaxed space-y-2 ${
-              m.from === "customer"
-                ? "ml-auto bg-cyan-600 text-white rounded-br-sm"
-                : "mr-auto bg-white/10 text-white/90 rounded-bl-sm"
+            className={`flex items-end gap-1.5 max-w-[85%] ${
+              m.from === "customer" ? "ml-auto flex-row-reverse" : "mr-auto"
             }`}
           >
-            {m.from === "bot" ? renderMessageText(m.text) : m.text}
+            {m.from === "bot" && (
+              <img src={chatbotMascot} alt="" className="w-6 h-6 object-contain flex-shrink-0 mb-1" />
+            )}
+            <div
+              className={`px-3 py-2 rounded-2xl text-[13px] leading-relaxed space-y-2 min-w-0 ${
+                m.from === "customer"
+                  ? "bg-[var(--color-accent)] text-[var(--accent-foreground)] rounded-br-sm"
+                  : "bg-[var(--color-muted)] text-[var(--text-h)] rounded-bl-sm"
+              }`}
+            >
+              {m.from === "bot" ? renderMessageText(m.text) : m.text}
+            </div>
           </div>
         ))}
         {sending && handoffState === "none" && (
-          <div className="mr-auto max-w-[85%] px-3 py-2.5 rounded-2xl rounded-bl-sm bg-white/10 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce [animation-delay:-0.3s]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce [animation-delay:-0.15s]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce" />
+          <div className="mr-auto max-w-[85%] flex items-end gap-1.5">
+            <img src={chatbotMascot} alt="" className="w-6 h-6 object-contain flex-shrink-0 mb-1" />
+            <div className="px-3 py-2.5 rounded-2xl rounded-bl-sm bg-[var(--color-muted)] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text)] opacity-40 animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text)] opacity-40 animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text)] opacity-40 animate-bounce" />
+            </div>
           </div>
         )}
         {handoffState === "connecting" && (
-          <p className="text-center text-[11px] text-white/40">Connecting you to a live agent…</p>
+          <p className="text-center text-[11px] text-[var(--text)] opacity-50">Connecting you to a live agent…</p>
         )}
-        {error && <p className="text-center text-[11px] text-red-400">{error}</p>}
+        {error && !guestLimitReached && <p className="text-center text-[11px] text-red-500">{error}</p>}
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="flex-shrink-0 p-2.5 border-t border-white/10 bg-black/20 flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={sending || handoffState !== "none"}
-          placeholder="Ask a question…"
-          className="flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[13px] text-white outline-none focus:border-cyan-400/50 disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || sending || handoffState !== "none"}
-          className="w-9 h-9 flex-shrink-0 rounded-xl bg-white text-black flex items-center justify-center hover:bg-white/90 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          <Send size={14} />
-        </button>
-      </form>
+      {guestLimitReached ? (
+        <div className="flex-shrink-0 p-3 border-t border-[var(--color-border)] bg-[var(--color-muted)] text-center">
+          <p className="text-[11px] text-[var(--text)] opacity-80">
+            You've reached the guest chat limit — sign in from the portal to keep chatting.
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={sendMessage} className="flex-shrink-0 p-2.5 border-t border-[var(--color-border)] bg-[var(--color-card)] flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={sending || handoffState !== "none"}
+            placeholder="Ask a question…"
+            className="flex-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 py-2 text-[13px] text-[var(--color-foreground)] outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || sending || handoffState !== "none"}
+            className="w-9 h-9 flex-shrink-0 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-[var(--accent-foreground)] flex items-center justify-center hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <Send size={14} />
+          </button>
+        </form>
+      )}
     </div>
   );
 }

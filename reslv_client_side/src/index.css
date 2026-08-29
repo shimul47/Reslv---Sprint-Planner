@@ -239,3 +239,29 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Gentle levitation for the floating chat launcher button (support portal). */
+@keyframes chat-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* The mascot's ground shadow — shrinks and fades as it rises, on the same
+   timing as chat-float, so it reads as a shadow being cast rather than a
+   second thing floating in sync with it. */
+@keyframes chat-float-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.28;
+  }
+  50% {
+    transform: scaleX(0.6);
+    opacity: 0.12;
+  }
+}

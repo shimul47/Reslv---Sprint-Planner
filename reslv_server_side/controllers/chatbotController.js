@@ -4,7 +4,13 @@ import Ticket from "../models/Ticket.js";
 import User from "../models/User.js";
 import { gemini, GEMINI_MODEL } from "../config/gemini.js";
 import { buildSystemPrompt } from "../services/chatbotPromptService.js";
+import { isDisallowedMessage, moderationReply } from "../services/chatModerationService.js";
 import { recomputeTicketImpact } from "../utils/businessImpact.js";
+
+// A signed-out visitor can try the bot without an account, but only for a
+// handful of messages — past this, they're asked to sign in rather than
+// getting cut off with no explanation.
+const ANONYMOUS_MESSAGE_LIMIT = 5;
 
 // A fixed sentinel the model is instructed to emit (see
 // services/chatbotPromptService.js) when a question needs a human — kept
@@ -71,7 +77,37 @@ export const sendMessage = async (req, res) => {
       return res.status(409).json({ message: "This conversation has already been handed off." });
     }
 
+    if (!session.customerId) {
+      const customerMessageCount = session.messages.filter((m) => m.from === "customer").length;
+      if (customerMessageCount >= ANONYMOUS_MESSAGE_LIMIT) {
+        return res.status(403).json({
+          message: "You've reached the guest chat limit — sign in to keep the conversation going.",
+          limitReached: true,
+        });
+      }
+    }
+
     session.messages.push({ from: "customer", text: text.trim() });
+
+    // Clearly abusive/disallowed messages get a fixed passive reply and
+    // never reach Gemini or the [[HANDOFF]] path — no API spend, and no
+    // ticket gets created just because someone swore at the bot.
+    if (isDisallowedMessage(text)) {
+      const replyText = moderationReply();
+      session.messages.push({ from: "bot", text: replyText });
+      await session.save();
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`chatbot:${session._id}`).emit("chatbot:message", {
+          from: "bot",
+          text: replyText,
+          time: new Date(),
+        });
+      }
+
+      return res.json({ reply: replyText, handoffSuggested: false, session });
+    }
 
     const systemPrompt = await buildSystemPrompt(session.companyId, session.customerId);
     const contents = session.messages.map((m) => ({
@@ -164,11 +200,20 @@ export const handoff = async (req, res) => {
       messages: session.messages.map((m) => ({
         from: m.from === "customer" ? "customer" : "agent",
         text: m.text,
-        agent: m.from === "bot" ? "Reslv Assistant" : displayName,
+        agent: m.from === "bot" ? "Reslv Chatbot" : displayName,
         authorId: m.from === "customer" ? session.customerId : null,
         time: m.time,
         read: false,
       })),
+    });
+
+    // A visible status line marking the handoff itself — rendered as a
+    // centered banner (not a chat bubble) in both the customer portal and
+    // the agent inbox, so the transition from bot to human reads as a clear
+    // event rather than blending into the message list.
+    ticket.messages.push({
+      from: "system",
+      text: "Connecting you to a live agent",
     });
 
     await recomputeTicketImpact(ticket);

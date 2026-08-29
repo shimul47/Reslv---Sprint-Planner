@@ -134,6 +134,21 @@ const Icons = {
       />
     </svg>
   ),
+  ChartBar: () => (
+    <svg
+      className="w-5 h-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 3v18h18M8 17V10m5 7V6m5 11v-4"
+      />
+    </svg>
+  ),
 };
 
 export default function AppShell({ onLogout, user }) {
@@ -168,10 +183,11 @@ export default function AppShell({ onLogout, user }) {
   const isAdminSection = location.pathname.startsWith("/admin");
   const isProfile = location.pathname.startsWith("/profile");
   const isTickets = location.pathname.startsWith("/tickets");
+  const isStatistics = location.pathname.startsWith("/statistics");
 
   const isRestrictedForUser =
     (isSprintPlanner && !canSeeSprintPlanner) ||
-    ((isAdminSection || isBilling) && !isAdmin) ||
+    ((isAdminSection || isBilling || isStatistics) && !isAdmin) ||
     (isTickets && !canSeeTickets);
 
   useEffect(() => {
@@ -213,6 +229,13 @@ export default function AppShell({ onLogout, user }) {
       active: isAdminSection,
     },
     {
+      label: "Statistics",
+      path: "/statistics",
+      icon: <Icons.ChartBar />,
+      show: isAdmin,
+      active: isStatistics,
+    },
+    {
       label: "Billing",
       path: "/billing",
       icon: <Icons.CreditCard />,
@@ -234,6 +257,7 @@ export default function AppShell({ onLogout, user }) {
     }
     if (isSprintPlanner) return "Sprint Planner";
     if (isAdminSection) return "Team Management";
+    if (isStatistics) return "Statistics";
     if (isBilling) return "Billing & Subscription";
     if (isProfile) return "My Profile";
     return "Application";
