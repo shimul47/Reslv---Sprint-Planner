@@ -59,6 +59,26 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
+  // Feedback State
+  const [myScore, setMyScore] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get("/feedback/my-score")
+      .then((res) => {
+        if (!cancelled && res.data.totalReviews > 0) {
+          setMyScore(res.data);
+        }
+      })
+      .catch((err) => {
+        // silently ignore, they might not have feedback perms or exist
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Keep profile local state synced with context
   useEffect(() => {
     if (user) {
@@ -441,6 +461,30 @@ export default function ProfilePage() {
                       </dd>
                     </div>
                   </dl>
+                )}
+
+                {myScore && (
+                  <div className="mt-10 pt-8 border-t border-[var(--color-border)]">
+                    <h3 className="text-lg font-bold mb-4">My Satisfaction Score</h3>
+                    <div className="flex items-center gap-6">
+                      <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 min-w-[120px]">
+                        <div className="text-4xl font-bold">{myScore.avgRating}</div>
+                        <div className="text-sm font-medium mt-1 text-[var(--color-foreground)] opacity-70">out of 5</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium opacity-80 mb-2">
+                          Based on {myScore.totalReviews} customer review{myScore.totalReviews !== 1 ? 's' : ''}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {[1,2,3,4,5].map(s => (
+                            <svg key={s} className={`w-5 h-5 ${s <= Math.round(myScore.avgRating) ? 'text-amber-500 fill-amber-500' : 'text-gray-300 dark:text-gray-600 fill-transparent'}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

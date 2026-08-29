@@ -8,6 +8,8 @@ import {
   handleGetSingleTicket,
   handleCreateTicket,
   handleSendMessage,
+  handleSubmitFeedback,
+  handleGetTicketFeedback,
 } from "../controllers/publicSupportController.js";
 
 const router = express.Router();
@@ -43,4 +45,27 @@ router.post(
   handleSendMessage,
 );
 
+// Feedback on resolved tickets
+router.post(
+  "/:companyCode/tickets/:ticketId/feedback",
+  requireCustomerAuth,
+  handleSubmitFeedback,
+);
+router.post(
+  "/tickets/:ticketId/feedback",
+  requireCustomerAuth,
+  handleSubmitFeedback,
+);
+router.get(
+  "/:companyCode/tickets/:ticketId/feedback",
+  requireCustomerAuth,
+  handleGetTicketFeedback,
+);
+router.get(
+  "/tickets/:ticketId/feedback",
+  requireCustomerAuth,
+  handleGetTicketFeedback,
+);
+
 export default router;
+

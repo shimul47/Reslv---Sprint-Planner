@@ -1,8 +1,10 @@
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
 import Ticket from "../models/Ticket.js";
+import Feedback from "../models/Feedback.js";
 import { sendTicketCreatedEmail } from "../utils/mailer.js";
 
 // -------------------------------------------------------------
@@ -174,9 +176,11 @@ export const handleGetTickets = async (req, res) => {
 export const handleGetSingleTicket = async (req, res) => {
   try {
     const { ticketId } = req.params;
-    const ticket = await Ticket.findOne({
-      $or: [{ ticketNumber: ticketId }, { _id: ticketId }],
-    });
+    const isObjectId = mongoose.Types.ObjectId.isValid(ticketId);
+    const query = isObjectId
+      ? { $or: [{ ticketNumber: ticketId }, { _id: ticketId }] }
+      : { ticketNumber: ticketId };
+    const ticket = await Ticket.findOne(query);
 
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
@@ -354,5 +358,87 @@ export const handleSendMessage = async (req, res) => {
   } catch (error) {
     console.error("Send Message Error:", error);
     res.status(500).json({ message: "Failed to send message." });
+  }
+};
+
+// -------------------------------------------------------------
+// CUSTOMER FEEDBACK ON RESOLVED TICKETS
+// -------------------------------------------------------------
+
+// POST /api/public/support/:companyCode/tickets/:ticketId/feedback
+export const handleSubmitFeedback = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { rating, comment } = req.body;
+
+    if (!rating) {
+      return res.status(400).json({ message: "Rating is required." });
+    }
+
+    const numRating = Number(rating);
+    if (!Number.isInteger(numRating) || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5." });
+    }
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(ticketId);
+    const query = isObjectId
+      ? { $or: [{ ticketNumber: ticketId }, { _id: ticketId }] }
+      : { ticketNumber: ticketId };
+    const ticket = await Ticket.findOne(query);
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found." });
+    }
+
+    if (ticket.status !== "resolved") {
+      return res.status(409).json({ message: "Feedback can only be given for resolved tickets." });
+    }
+
+    const feedback = await Feedback.findOneAndUpdate(
+      {
+        ticketId: ticket._id,
+        customerId: req.user._id,
+      },
+      {
+        companyId: ticket.companyId,
+        agentId: ticket.closedBy || ticket.assignedTo || null,
+        rating: numRating,
+        comment: (comment || "").slice(0, 500),
+        type: "ticket",
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(200).json({ feedback });
+  } catch (error) {
+    console.error("Submit feedback error:", error);
+    res.status(500).json({ message: "Failed to submit feedback." });
+  }
+};
+
+// GET /api/public/support/:companyCode/tickets/:ticketId/feedback
+export const handleGetTicketFeedback = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(ticketId);
+    const query = isObjectId
+      ? { $or: [{ ticketNumber: ticketId }, { _id: ticketId }] }
+      : { ticketNumber: ticketId };
+    const ticket = await Ticket.findOne(query);
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found." });
+    }
+
+    const feedback = await Feedback.findOne({
+      ticketId: ticket._id,
+      customerId: req.user._id,
+    }).lean();
+
+    res.json({ feedback: feedback || null });
+  } catch (error) {
+    console.error("Get ticket feedback error:", error);
+    res.status(500).json({ message: "Failed to fetch feedback." });
   }
 };

@@ -21,6 +21,7 @@ import paymentRoutes, { handleWebhook } from "./routes/paymentRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import sprintPlannerRoutes from "./routes/sprintPlanner.js";
 import segmentRoutes from "./routes/segments.js";
+import feedbackRoutes from "./routes/feedbackRoutes.js";
 
 import Company from "./models/Company.js";
 import User from "./models/User.js";
@@ -72,6 +73,7 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/sprint-planner", sprintPlannerRoutes);
 app.use("/api/segments", segmentRoutes);
 app.use("/api/public/support", publicSupportRoutes);
+app.use("/api/feedback", feedbackRoutes);
 app.use("/api/payments", paymentRoutes);
 // Basic Route
 app.get("/", (req, res) => {
