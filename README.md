@@ -46,11 +46,11 @@ Support agents and engineers usually work in separate tools, and the handoff bet
 
 ## User Roles
 
-| Role                       | Responsibilities                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Role                        | Responsibilities                                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Admin**                   | Verifies accounts, monitors the system, configures SLA/prioritization/subscription parameters, routes escalated tickets to team leads. |
 | **Support Agent**           | Creates and manages tickets, chats with customers, escalates unsolved tickets to admin.                                                |
-| **Team Lead**                | Receives escalated tickets from admin, assigns them to team members, monitors team sprint progress.                                    |
+| **Team Lead**               | Receives escalated tickets from admin, assigns them to team members, monitors team sprint progress.                                    |
 | **Engineering Team Member** | Manages backlog, works sprint tasks, logs time, receives assigned/escalated tickets, may hand off work in emergencies.                 |
 
 ## Features by Module
@@ -85,24 +85,24 @@ Support agents and engineers usually work in separate tools, and the handoff bet
 
 ## Tech Stack
 
-| Layer            | Technology                |
-| ----------------- | -------------------------- |
-| Web Frontend     | React.js, TailwindCSS      |
-| Mobile Frontend  | React Native (Android)     |
-| Backend          | Node.js, Express.js        |
-| Database         | MongoDB                    |
-| Stack Family     | MERN                       |
-| Deployment       | Render                     |
+| Layer           | Technology             |
+| --------------- | ---------------------- |
+| Web Frontend    | React.js, TailwindCSS  |
+| Mobile Frontend | React Native (Android) |
+| Backend         | Node.js, Express.js    |
+| Database        | MongoDB                |
+| Stack Family    | MERN                   |
+| Deployment      | Render                 |
 
 ## External APIs
 
-| API                    | Purpose                                                     |
-| ----------------------- | ------------------------------------------------------------- |
-| Payment Gateway API     | Subscription billing                                          |
-| Mail & OTP API          | Email notifications + OTP verification                        |
-| Notification API        | Real-time alerts / push notifications                         |
-| Calendar API             | Availability-aware sprint capacity planning                    |
-| Google Gemini API        | Customer-facing AI chatbot + self-service support assistant   |
+| API                 | Purpose                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| Payment Gateway API | Subscription billing                                        |
+| Mail & OTP API      | Email notifications + OTP verification                      |
+| Notification API    | Real-time alerts / push notifications                       |
+| Calendar API        | Availability-aware sprint capacity planning                 |
+| Google Gemini API   | Customer-facing AI chatbot + self-service support assistant |
 
 ## Getting Started
 
@@ -155,31 +155,68 @@ GEMINI_MODEL=gemini-3.6-flash
 - [x] UI design system & Figma mockup (Ticket Inbox)
 - [x] Backend API (auth, tickets, sprints)
 - [x] Web frontend (support & sprint dashboards)
+
+### Module 1 — Support & Ticket Management
+
+- [x] Multi-channel ticket dashboard & full ticket CRUD
+- [x] Ticket messaging (agent ↔ customer threads) & internal notes
+- [x] Ticket escalation, assignment & resolution workflow
+- [x] Ticket delegation chain (Support Agent → Admin → Team Lead → Team Member)
+- [x] Customer-facing public support portal (self-service signup/login, ticket submission & tracking)
+- [x] Customer segmentation (segment CRUD & membership management)
+- [x] Ticket settings, reports summary & escalation reports
+
+### Module 2 — Sprint Planning & Hour Tracking
+
+- [x] Sprint setup with task-hour assignment & sprint CRUD
+- [x] Sprint publishing, board view & capacity view
+- [x] Backlog & task management (create/update/delete, story points)
+- [x] Task requests & emergency work handoff with hour transfer
+- [x] Team availability & Google Calendar integration (OAuth, availability, nudges)
+- [x] Sprint & Scrum stats, performance analytics
+
+### Module 3 — Intelligence, AI & Analytics
+
+- [x] AI chatbot integration (Google Gemini-powered, self-service with live-agent handoff)
+- [x] Engineering & sprint analytics dashboards
+- [x] Customer ticket → sprint task promotion (bidirectional ticket ↔ task link)
+- [x] Review & feedback system (1–5 star ratings, agent scoring, feedback dashboard)
+- [x] Company-wide statistics dashboard
+
+### Module 4 — Notifications, Payments & Admin
+
+- [x] Team invite system (email invite + accept-invite flow)
+- [x] Payment & subscription integration (Stripe checkout, billing portal, plan tiers)
+- [x] Loyalty / reward points system (summary, leaderboard, adjust/redeem, admin settings)
+- [x] Admin configuration panel (prioritization weights, SLA settings)
+- [x] Super-admin panel (multi-company management, admin account provisioning)
+- [x] Role-based access control (Admin, Support Agent, Team Lead, Engineering Team Member)
+
+### Not Yet Started
+
 - [ ] Mobile app (React Native)
-- [x] AI chatbot integration
-- [ ] Payment & subscription integration
-- [ ] Deployment
+- [ ] Production deployment
 
 ## Business Model
 
 Reslv is offered as a subscription (SaaS), billed per user per month or per year, across three tiers:
 
-| Tier         | Includes                                                                          |
-| ------------- | ------------------------------------------------------------------------------------ |
-| **Starter**      | Ticketing, basic board, ticket↔task bridge                                         |
-| **Professional** | + Revenue-weighted prioritization, reporting                                        |
-| **Enterprise**   | + Dollar-Traced Engineering, SLA forecasting, custom security                       |
+| Tier             | Includes                                                      |
+| ---------------- | ------------------------------------------------------------- |
+| **Starter**      | Ticketing, basic board, ticket↔task bridge                    |
+| **Professional** | + Revenue-weighted prioritization, reporting                  |
+| **Enterprise**   | + Dollar-Traced Engineering, SLA forecasting, custom security |
 
 ## Team
 
 **BRAC University — CSE471: System Analysis and Design**
 Group 01, Lab Section 02, Summer 2026
 
-| ID       | Name                        |
-| -------- | --------------------------- |
-| 22299079 | MD. Sohanur Rahman Shimul   |
-| 22201411 | Moutmayen Nafis              |
-| 23101146 | Sahriar Mahbub Sazid         |
+| ID       | Name                      |
+| -------- | ------------------------- |
+| 22299079 | MD. Sohanur Rahman Shimul |
+| 22201411 | Moutmayen Nafis           |
+| 23101146 | Sahriar Mahbub Sazid      |
 
 ## License
 
