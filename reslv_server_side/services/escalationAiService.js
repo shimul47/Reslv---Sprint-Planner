@@ -1,5 +1,31 @@
 import { gemini, GEMINI_MODEL } from "../config/gemini.js";
 
+// Only Gemini's "high demand" 503s are worth retrying — they're usually gone
+// within a second or two. A 429 is a quota/rate-limit error: on the free
+// tier it's most often the per-day cap (e.g. "20 requests/day"), which a
+// short backoff can never clear, so retrying it just adds latency before
+// hitting the exact same error again. Fail straight to the fallback instead.
+const RETRYABLE_STATUSES = new Set([503]);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function generateWithRetry(prompt, { retries = 2, baseDelayMs = 800 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await gemini.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      });
+    } catch (error) {
+      const status = error?.status ?? error?.response?.status;
+      if (!RETRYABLE_STATUSES.has(status) || attempt >= retries) throw error;
+      await sleep(baseDelayMs * 2 ** attempt);
+    }
+  }
+}
+
 // Pulls the first {...} block out of a model reply — Gemini sometimes wraps
 // JSON in a ```json fence despite the prompt asking for raw JSON.
 function extractJson(text) {
@@ -44,10 +70,7 @@ Available teams: ${teamNames.length ? teamNames.join(", ") : "(none configured)"
 Reply with ONLY a JSON object, no other text:
 {"summary": "2-3 sentences: what the main issue is and why it needs admin attention", "teamName": "the single best-matching team name from the list above, or empty string if none fit"}`;
 
-    const response = await gemini.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-    });
+    const response = await generateWithRetry(prompt);
 
     const parsed = extractJson(response.text);
     if (!parsed?.summary) return fallback;
@@ -83,10 +106,7 @@ Hours logged: ${task.actualHours ?? "unknown"}
 
 Reply with ONLY the summary text, no preamble, no JSON.`;
 
-    const response = await gemini.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-    });
+    const response = await generateWithRetry(prompt);
 
     return response.text?.trim() || fallback;
   } catch (error) {

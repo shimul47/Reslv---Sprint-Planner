@@ -4,6 +4,7 @@ import {
   BarChart2,
   CheckCircle,
   Inbox,
+  Loader2,
   MoreHorizontal,
   Paperclip,
   Search,
@@ -85,6 +86,27 @@ export function TicketRow({ ticket, selected, onClick }) {
   );
 }
 
+// Mirrors TicketRow's layout while the initial fetch is in flight, so the
+// list doesn't flash "no tickets" before real data (or a real empty state)
+// arrives.
+function TicketRowSkeleton() {
+  return (
+    <div className="px-4 py-3.5 border-b border-[rgba(128,128,200,0.08)] animate-pulse">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-full bg-[#EEF0FF] flex-shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="h-2.5 w-16 rounded-full bg-[#EEF0FF]" />
+            <div className="h-2.5 w-8 rounded-full bg-[#F0F0FF]" />
+          </div>
+          <div className="h-3 w-4/5 rounded-full bg-[#F0F0FF]" />
+          <div className="h-2.5 w-3/5 rounded-full bg-[#F5F5FF]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StatsBar({ tickets = TKT }) {
   const open = tickets.filter((t) => t.status === "open").length;
   const inProg = tickets.filter((t) => t.status === "in-progress").length;
@@ -163,6 +185,9 @@ export function TicketDetail({
   const [showMenu, setShowMenu] = useState(false);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [agents, setAgents] = useState([]);
+  // Which async ticket action is currently in flight, if any — drives the
+  // loading state + disables the other action buttons so two can't overlap.
+  const [pendingAction, setPendingAction] = useState(null);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -184,6 +209,7 @@ export function TicketDetail({
   useEffect(() => {
     setTab("thread");
     setMsg("");
+    setPendingAction(null);
     endRef.current?.scrollIntoView({ behavior: "instant" });
   }, [ticket.id]);
 
@@ -212,6 +238,16 @@ export function TicketDetail({
     }
   };
 
+  const runAction = async (key, fn) => {
+    if (pendingAction) return;
+    setPendingAction(key);
+    try {
+      await fn();
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 px-6 py-2.5 border-b border-[rgba(128,128,200,0.1)] bg-white">
@@ -224,16 +260,26 @@ export function TicketDetail({
           <div className="flex items-center gap-1.5 flex-shrink-0 relative">
             {isResolved ? (
               <button
-                onClick={() => onReopen?.(ticket.id)}
-                className="px-3 py-1.5 text-[12px] font-semibold bg-[#EEF0FF] text-[#5B5BD6] rounded-xl hover:bg-[#E4E6FF] transition-colors border border-[rgba(128,128,200,0.18)]"
+                disabled={!!pendingAction}
+                onClick={() => runAction("reopen", () => onReopen?.(ticket.id))}
+                className="px-3 py-1.5 text-[12px] font-semibold bg-[#EEF0FF] text-[#5B5BD6] rounded-xl hover:bg-[#E4E6FF] transition-colors border border-[rgba(128,128,200,0.18)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
+                {pendingAction === "reopen" && (
+                  <Loader2 size={12} className="animate-spin" />
+                )}
                 Reopen
               </button>
             ) : (
               <button
-                onClick={() => onResolve?.(ticket.id)}
-                className="px-3 py-1.5 text-[12px] font-semibold bg-[#EDFAF2] text-[#228050] rounded-xl hover:bg-[#D5F5E3] transition-colors border border-[rgba(61,184,112,0.18)]"
+                disabled={!!pendingAction}
+                onClick={() =>
+                  runAction("resolve", () => onResolve?.(ticket.id))
+                }
+                className="px-3 py-1.5 text-[12px] font-semibold bg-[#EDFAF2] text-[#228050] rounded-xl hover:bg-[#D5F5E3] transition-colors border border-[rgba(61,184,112,0.18)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
+                {pendingAction === "resolve" && (
+                  <Loader2 size={12} className="animate-spin" />
+                )}
                 Resolve
               </button>
             )}
@@ -253,12 +299,16 @@ export function TicketDetail({
               <div className="absolute top-9 right-0 w-44 bg-white rounded-xl shadow-lg border border-[rgba(128,128,200,0.14)] z-20 overflow-hidden">
                 {ticket.assignedTo && canManageAssignment && (
                   <button
+                    disabled={!!pendingAction}
                     onClick={() => {
-                      onAssign?.(ticket.id, null);
                       setShowMenu(false);
+                      runAction("unassign", () => onAssign?.(ticket.id, null));
                     }}
-                    className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-[#6B6B90] hover:bg-[#F5F5FF] transition-colors"
+                    className="w-full flex items-center gap-1.5 text-left px-3.5 py-2.5 text-[12px] font-medium text-[#6B6B90] hover:bg-[#F5F5FF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
+                    {pendingAction === "unassign" && (
+                      <Loader2 size={12} className="animate-spin" />
+                    )}
                     Unassign ticket
                   </button>
                 )}
@@ -353,20 +403,28 @@ export function TicketDetail({
             </p>
             <div className="flex gap-2">
               <button
-                disabled={isResolved || !ticket.assignedTo}
+                disabled={isResolved || !ticket.assignedTo || !!pendingAction}
                 title={
                   !ticket.assignedTo
                     ? "Assign the ticket to an agent before escalating"
                     : undefined
                 }
-                onClick={() => onEscalate?.(ticket.id)}
-                className="flex-1 py-2 text-[13px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-xl hover:bg-[#E4E6FF] transition-colors disabled:opacity-50"
+                onClick={() =>
+                  runAction("escalate", () => onEscalate?.(ticket.id))
+                }
+                className="flex-1 py-2 text-[13px] font-semibold text-[#5B5BD6] bg-[#EEF0FF] rounded-xl hover:bg-[#E4E6FF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
-                Escalate to Admin
+                {pendingAction === "escalate" && (
+                  <Loader2 size={13} className="animate-spin" />
+                )}
+                {pendingAction === "escalate"
+                  ? "Escalating…"
+                  : "Escalate to Admin"}
               </button>
               <button
+                disabled={!!pendingAction}
                 onClick={() => setShowAssignPicker((v) => !v)}
-                className="flex-1 py-2 text-[13px] font-semibold text-[#6B6B90] border border-[rgba(128,128,200,0.2)] rounded-xl hover:border-[#80A8FF] hover:text-[#5B5BD6] transition-all"
+                className="flex-1 py-2 text-[13px] font-semibold text-[#6B6B90] border border-[rgba(128,128,200,0.2)] rounded-xl hover:border-[#80A8FF] hover:text-[#5B5BD6] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Assign Member
               </button>
@@ -374,15 +432,20 @@ export function TicketDetail({
             {showAssignPicker && (
               <select
                 defaultValue=""
-                onChange={async (e) => {
-                  if (!e.target.value) return;
-                  await onAssign?.(ticket.id, e.target.value);
-                  setShowAssignPicker(false);
+                disabled={!!pendingAction}
+                onChange={(e) => {
+                  const agentId = e.target.value;
+                  if (!agentId) return;
+                  runAction("assign", () =>
+                    onAssign?.(ticket.id, agentId),
+                  ).then(() => setShowAssignPicker(false));
                 }}
-                className="mt-3 w-full px-3 py-2 rounded-xl border border-[rgba(128,128,200,0.2)] bg-[#F8F8FF] text-[13px] text-[#18182E] cursor-pointer focus:outline-none"
+                className="mt-3 w-full px-3 py-2 rounded-xl border border-[rgba(128,128,200,0.2)] bg-[#F8F8FF] text-[13px] text-[#18182E] cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="" disabled>
-                  Select an agent…
+                  {pendingAction === "assign"
+                    ? "Assigning…"
+                    : "Select an agent…"}
                 </option>
                 {agents.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -438,13 +501,18 @@ export function TicketDetail({
             />
             <div className="flex justify-end pt-2 border-t border-[rgba(128,128,200,0.08)] mt-2">
               <button
-                onClick={async () => {
+                disabled={!!pendingAction}
+                onClick={() => {
                   if (!note.trim() || !onSaveNote) return;
-                  await onSaveNote(ticket.id, note.trim());
-                  setNote("");
+                  runAction("note", () =>
+                    onSaveNote(ticket.id, note.trim()),
+                  ).then(() => setNote(""));
                 }}
-                className="px-4 py-1.5 bg-[#CEB5FF] text-[#3D3060] text-[12px] font-semibold rounded-lg hover:bg-[#BEA5EE] transition-colors"
+                className="px-4 py-1.5 bg-[#CEB5FF] text-[#3D3060] text-[12px] font-semibold rounded-lg hover:bg-[#BEA5EE] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
+                {pendingAction === "note" && (
+                  <Loader2 size={12} className="animate-spin" />
+                )}
                 Save Note
               </button>
             </div>
@@ -462,7 +530,18 @@ export function TicketDetail({
 // changes.
 function SprintTaskCard({ ticket, onResolve, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const task = ticket.linkedTask;
+
+  const handleResolveClick = async () => {
+    if (resolving || !onResolve) return;
+    setResolving(true);
+    try {
+      await onResolve(ticket.id);
+    } finally {
+      setResolving(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-[rgba(128,128,200,0.12)] p-4 shadow-sm">
@@ -496,10 +575,12 @@ function SprintTaskCard({ ticket, onResolve, onRefresh }) {
               "The linked sprint task has been marked done."}
           </p>
           <button
-            onClick={() => onResolve?.(ticket.id)}
-            className="w-full py-2 text-[13px] font-semibold text-[#228050] bg-[#EDFAF2] rounded-xl hover:bg-[#D5F5E3] transition-colors"
+            disabled={resolving}
+            onClick={handleResolveClick}
+            className="w-full py-2 text-[13px] font-semibold text-[#228050] bg-[#EDFAF2] rounded-xl hover:bg-[#D5F5E3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
           >
-            Mark Resolved
+            {resolving && <Loader2 size={13} className="animate-spin" />}
+            {resolving ? "Resolving…" : "Mark Resolved"}
           </button>
         </div>
       )}
@@ -521,6 +602,10 @@ function SprintTaskCard({ ticket, onResolve, onRefresh }) {
 export function useTicketFeed(selectedTicketId) {
   const { user } = useContext(AuthContext);
   const [tickets, setTickets] = useState([]); // Initialized as completely empty
+  // Only meaningfully true until the first fetch resolves — later
+  // socket-triggered refreshes reuse the same function without flashing
+  // the list back into a loading state.
+  const [loading, setLoading] = useState(true);
 
   const refreshTickets = async () => {
     try {
@@ -530,6 +615,8 @@ export function useTicketFeed(selectedTicketId) {
       setTickets(data);
     } catch (error) {
       console.error("Unable to refresh tickets:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -590,7 +677,7 @@ export function useTicketFeed(selectedTicketId) {
     return () => socket.disconnect();
   }, [user?.companyId, selectedTicketId]);
 
-  return { tickets, refreshTickets };
+  return { tickets, refreshTickets, loading };
 }
 
 export function InboxView({ mode = "active" }) {
@@ -599,7 +686,7 @@ export function InboxView({ mode = "active" }) {
   const isAdmin =
     user?.roles?.some((r) => ["admin", "superadmin"].includes(r)) ?? false;
   const [selectedId, setSelectedId] = useState(null);
-  const { tickets, refreshTickets } = useTicketFeed(selectedId);
+  const { tickets, refreshTickets, loading } = useTicketFeed(selectedId);
 
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("all");
@@ -749,7 +836,7 @@ export function InboxView({ mode = "active" }) {
               <span className="text-[11px] font-semibold text-[#6B6B90]">
                 {showAllForAdmin
                   ? "Showing all tickets"
-                  : "Showing escalated tickets only"}
+                  : "Showing all tickets"}
               </span>
 
               <span
@@ -817,56 +904,66 @@ export function InboxView({ mode = "active" }) {
 
         <div className="px-4 py-2 flex-shrink-0">
           <span className="text-[10px] font-bold text-[#C8C8E0] uppercase tracking-widest">
-            {filtered.length} ticket{filtered.length !== 1 ? "s" : ""}
+            {loading
+              ? "Loading…"
+              : `${filtered.length} ticket${filtered.length !== 1 ? "s" : ""}`}
           </span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filtered.map((t) => (
-            <TicketRow
-              key={t.id}
-              ticket={t}
-              selected={selectedId === t.id}
-              onClick={() => setSelectedId(t.id)}
-            />
-          ))}
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <TicketRowSkeleton key={i} />
+            ))
+          ) : (
+            <>
+              {filtered.map((t) => (
+                <TicketRow
+                  key={t.id}
+                  ticket={t}
+                  selected={selectedId === t.id}
+                  onClick={() => setSelectedId(t.id)}
+                />
+              ))}
 
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-              <div className="w-12 h-12 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-3">
-                <Search size={20} className="text-[#D3D3FF]" />
-              </div>
-              <p className="text-[13px] font-semibold text-[#6B6B90]">
-                {scoped.length === 0
-                  ? isResolvedMode
-                    ? "No resolved tickets yet"
-                    : escalationFilterActive
-                      ? "No escalated tickets"
-                      : "No tickets yet"
-                  : "No tickets match"}
-              </p>
-              <p className="text-[12px] text-[#C0C0D8] mt-1">
-                {scoped.length === 0
-                  ? isResolvedMode
-                    ? "Tickets marked resolved will show up here."
-                    : escalationFilterActive
-                      ? "Tickets an agent escalates to admin will show up here. Toggle above to see all tickets."
-                      : "When customers reach out, they will appear here."
-                  : "Try adjusting your search or filters"}
-              </p>
-              {scoped.length > 0 && (
-                <button
-                  onClick={() => {
-                    setSearch("");
-                    setStatusF("all");
-                    setChannelF("all");
-                  }}
-                  className="mt-3 text-[12px] text-[#80A8FF] font-semibold hover:text-[#5B8AEE] transition-colors"
-                >
-                  Clear all filters
-                </button>
+              {filtered.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                  <div className="w-12 h-12 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-3">
+                    <Search size={20} className="text-[#D3D3FF]" />
+                  </div>
+                  <p className="text-[13px] font-semibold text-[#6B6B90]">
+                    {scoped.length === 0
+                      ? isResolvedMode
+                        ? "No resolved tickets yet"
+                        : escalationFilterActive
+                          ? "No escalated tickets"
+                          : "No tickets yet"
+                      : "No tickets match"}
+                  </p>
+                  <p className="text-[12px] text-[#C0C0D8] mt-1">
+                    {scoped.length === 0
+                      ? isResolvedMode
+                        ? "Tickets marked resolved will show up here."
+                        : escalationFilterActive
+                          ? "Tickets an agent escalates to admin will show up here. Toggle above to see all tickets."
+                          : "When customers reach out, they will appear here."
+                      : "Try adjusting your search or filters"}
+                  </p>
+                  {scoped.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setSearch("");
+                        setStatusF("all");
+                        setChannelF("all");
+                      }}
+                      className="mt-3 text-[12px] text-[#80A8FF] font-semibold hover:text-[#5B8AEE] transition-colors"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
