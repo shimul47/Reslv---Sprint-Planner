@@ -86,6 +86,19 @@ export const disconnect = async (req, res) => {
   res.json({ disconnected: true });
 };
 
+// Google's own signal for "this refresh token no longer works" — revoked by
+// the user, or (very commonly in local dev) auto-expired after 7 days
+// because the OAuth consent screen is still in Testing publishing status.
+// Either way, retrying won't help; the connection is actually dead.
+function isRevokedTokenError(err) {
+  const code = err?.response?.data?.error || err?.code;
+  return code === "invalid_grant" || /invalid_grant/i.test(err?.message || "");
+}
+
+async function markCalendarDisconnected(userId) {
+  await User.findByIdAndUpdate(userId, { "googleCalendar.connected": false }).catch(() => {});
+}
+
 async function getAuthedClientForUser(userId) {
   const user = await User.findById(userId);
   if (!user?.googleCalendar?.connected || !user.googleCalendar.refreshToken) {
@@ -142,6 +155,10 @@ export const getAvailability = async (req, res) => {
     res.json({ userId: targetUserId, start, end, busy });
   } catch (error) {
     console.error("getAvailability error:", error.message);
+    if (isRevokedTokenError(error)) {
+      await markCalendarDisconnected(req.query.userId || req.user.id);
+      return res.status(409).json({ message: "Google Calendar access expired — reconnect required.", tokenExpired: true });
+    }
     res.status(error.status || 500).json({ message: error.message || "Server error" });
   }
 };
@@ -200,7 +217,13 @@ export const getTeamAvailability = async (req, res) => {
           base.busy = data.calendars?.primary?.busy || [];
         } catch (err) {
           console.error(`Team availability fetch failed for ${user._id}:`, err.message);
-          base.error = "Couldn't read this calendar right now.";
+          if (isRevokedTokenError(err)) {
+            await markCalendarDisconnected(user._id);
+            base.connected = false;
+            base.error = "Google Calendar access expired — reconnect required.";
+          } else {
+            base.error = "Couldn't read this calendar right now.";
+          }
         }
         return base;
       }),

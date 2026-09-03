@@ -119,7 +119,7 @@ export default function SuperAdminDashboard() {
   const [limitDraft, setLimitDraft] = useState("");
 
   // Add your actual backend URL/Token here
-  const API_BASE = "http://localhost:5000/api/superadmin"; // Adjust to your backend port
+  const API_BASE = `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/superadmin`;
   const token = localStorage.getItem("token") || "";
   const publicSupportBase = `${window.location.origin}/support`;
   const filteredAdmins =
