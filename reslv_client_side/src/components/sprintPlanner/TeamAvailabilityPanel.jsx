@@ -154,7 +154,9 @@ export default function TeamAvailabilityPanel() {
                   </div>
 
                   {!emp.connected ? (
-                    <p className="text-[11px] opacity-60">Hasn't connected Google Calendar yet.</p>
+                    <p className="text-[11px] opacity-60">
+                      {emp.error || "Hasn't connected Google Calendar yet."}
+                    </p>
                   ) : emp.error ? (
                     <span className="inline-flex items-center gap-1 w-fit text-[11px] font-medium text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
                       <AlertTriangle size={11} /> {emp.error}

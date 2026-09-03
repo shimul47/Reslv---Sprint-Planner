@@ -907,13 +907,19 @@ export default function SupportPortalPage() {
           </div>
         )}
       </div>
-      <ChatWidget
-        apiRoot={API_ROOT}
-        wsRoot={WS_ROOT}
-        companyCode={companyCode}
-        token={token}
-        onHandoff={() => updateTicketList(token)}
-      />
+      {/* Hidden while actively viewing an unresolved ticket — that's a live
+          agent conversation already, and the floating launcher would just
+          sit on top of the reply box for no reason. Still available from
+          the ticket list, a resolved ticket, or the compose screen. */}
+      {!(activeTicket && activeTicket.status !== "resolved") && (
+        <ChatWidget
+          apiRoot={API_ROOT}
+          wsRoot={WS_ROOT}
+          companyCode={companyCode}
+          token={token}
+          onHandoff={() => updateTicketList(token)}
+        />
+      )}
     </div>
   );
 }
