@@ -1,18 +1,13 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import dotenv from "dotenv";
 dotenv.config();
 
-// ---------------------------------------------------------------------
-// Resend — disabled for now. Resend's sandbox sender (onboarding@resend.dev)
-// can only deliver to the Resend account's own verified email, so nothing
-// sent to a real invitee/customer address goes through until a sending
-// domain is verified in the Resend dashboard (planned once this is hosted).
-// Left in place, commented out, to swap back in at that point.
-// ---------------------------------------------------------------------
-// import { Resend } from "resend";
-// const resend = new Resend(process.env.RESEND_API_KEY);
-// const RESEND_FROM = process.env.RESEND_FROM || "Reslv <onboarding@resend.dev>";
-
+// SMTP (Gmail) is the active sender — free, already has working credentials
+// in .env, and needs no domain verification, which makes it the right
+// choice for a showcase project. Resend stays fully wired up as an
+// alternate path (see sendEmailViaResend below) for whenever a real
+// verified sending domain is available.
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT) || 587,
@@ -22,8 +17,13 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 });
+const SMTP_FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
 
-const FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
+const resend = new Resend(process.env.RESEND_API_KEY);
+// Must be an address on a domain verified in the Resend dashboard — the
+// sandbox sender (onboarding@resend.dev) can only deliver to the Resend
+// account's own verified email, never to a real invitee/customer.
+const RESEND_FROM = process.env.RESEND_FROM || "Reslv <onboarding@resend.dev>";
 
 // In local dev, force every send to your own inbox instead of the real
 // recipient — keeps test runs from emailing real customers/invitees.
@@ -42,27 +42,48 @@ async function sendEmail({ to, subject, html }) {
 
   try {
     return await transporter.sendMail({
-      from: FROM,
+      from: SMTP_FROM,
       to: actualTo,
       subject: actualSubject,
       html,
     });
-
-    // --- Resend equivalent (swap back in once a domain is verified) ---
-    // const result = await resend.emails.send({
-    //   from: RESEND_FROM,
-    //   to: actualTo,
-    //   subject: actualSubject,
-    //   html,
-    // });
-    // if (result.error) {
-    //   console.error("Resend send error:", result.error);
-    // }
-    // return result;
   } catch (err) {
     // Email failures should never break the request they're attached to —
     // log and move on rather than throwing.
     console.error("sendEmail failed:", err.message);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Resend alternate — not called by sendEmail() above. Point sendEmail's
+// body at this instead (same signature) once a verified sending domain is
+// set up and RESEND_FROM is pointed at it.
+// ---------------------------------------------------------------------
+async function sendEmailViaResend({ to, subject, html }) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn(`RESEND_API_KEY not set — skipping email "${subject}" to ${to}`);
+    return null;
+  }
+
+  const redirectDev = !isProduction && DEV_REDIRECT_TO;
+  const actualTo = redirectDev ? DEV_REDIRECT_TO : to;
+  const actualSubject = redirectDev ? `[DEV → ${to}] ${subject}` : subject;
+
+  try {
+    const result = await resend.emails.send({
+      from: RESEND_FROM,
+      to: actualTo,
+      subject: actualSubject,
+      html,
+    });
+    if (result.error) {
+      console.error("Resend send error:", result.error);
+      return null;
+    }
+    return result;
+  } catch (err) {
+    console.error("sendEmailViaResend failed:", err.message);
     return null;
   }
 }
