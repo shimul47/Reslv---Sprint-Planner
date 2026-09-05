@@ -1,34 +1,54 @@
-import React, { useContext, useEffect } from "react";
+import React, { Suspense, lazy, useContext, useEffect } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AuthContext } from "./context/AuthContext";
 
-import AppShell from "./pages/AppShell";
+// LoginScreen is the only page an unauthenticated visitor ever needs, so it
+// stays a static import — everything below is behind a login and can be
+// split into its own chunk instead of bloating the initial bundle.
 import LoginScreen from "./pages/LoginScreen";
-import SuperAdminDashboard from "./pages/SuperAdminDashboard";
-import {
-  InboxView,
-  ResolvedView,
-} from "./components/workspace/Views";
-import { ReportsView } from "./components/workspace/Reports";
-import { SettingsView } from "./components/workspace/Settings";
-import SprintPlannerPage from "./pages/SprintPlannerPage";
-import SprintBoardView from "./pages/sprintPlanner/SprintBoardView";
-import ScrumStatsView from "./pages/sprintPlanner/ScrumStatsView";
-import PerformanceAnalyticsView from "./pages/sprintPlanner/PerformanceAnalyticsView";
-import AvailabilityView from "./pages/sprintPlanner/AvailabilityView";
-import TeamManagement from "./pages/TeamManagement";
-import StatisticsPage from "./pages/StatisticsPage";
-import BillingPage from "./pages/BillingPage";
-import ProfilePage from "./pages/ProfilePage";
-import InviteAcceptPage from "./pages/InviteAcceptPage";
-import SupportPortalPage from "./pages/SupportPortalPage";
-import TicketsPage from "./pages/TicketsPage";
-import SupportFeedbackPage from "./pages/SupportFeedbackPage";
-import LoyaltyPointsPage from "./pages/LoyaltyPointsPage";
-import AdminPanelPage from "./pages/AdminPanelPage";
-import MonitoringDashboard from "./components/admin/MonitoringDashboard.jsx";
-import ConfigurationPanel from "./components/admin/ConfigurationPanel.jsx";
 import { roleLandingPath } from "./utils/roleRouting.js";
+
+const AppShell = lazy(() => import("./pages/AppShell"));
+const SuperAdminDashboard = lazy(() => import("./pages/SuperAdminDashboard"));
+const InboxView = lazy(() =>
+  import("./components/workspace/Views").then((m) => ({ default: m.InboxView })),
+);
+const ResolvedView = lazy(() =>
+  import("./components/workspace/Views").then((m) => ({ default: m.ResolvedView })),
+);
+const ReportsView = lazy(() =>
+  import("./components/workspace/Reports").then((m) => ({ default: m.ReportsView })),
+);
+const SettingsView = lazy(() =>
+  import("./components/workspace/Settings").then((m) => ({ default: m.SettingsView })),
+);
+const SprintPlannerPage = lazy(() => import("./pages/SprintPlannerPage"));
+const SprintBoardView = lazy(() => import("./pages/sprintPlanner/SprintBoardView"));
+const ScrumStatsView = lazy(() => import("./pages/sprintPlanner/ScrumStatsView"));
+const PerformanceAnalyticsView = lazy(() =>
+  import("./pages/sprintPlanner/PerformanceAnalyticsView"),
+);
+const AvailabilityView = lazy(() => import("./pages/sprintPlanner/AvailabilityView"));
+const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const StatisticsPage = lazy(() => import("./pages/StatisticsPage"));
+const BillingPage = lazy(() => import("./pages/BillingPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
+const SupportPortalPage = lazy(() => import("./pages/SupportPortalPage"));
+const TicketsPage = lazy(() => import("./pages/TicketsPage"));
+const SupportFeedbackPage = lazy(() => import("./pages/SupportFeedbackPage"));
+const LoyaltyPointsPage = lazy(() => import("./pages/LoyaltyPointsPage"));
+const AdminPanelPage = lazy(() => import("./pages/AdminPanelPage"));
+const MonitoringDashboard = lazy(() => import("./components/admin/MonitoringDashboard.jsx"));
+const ConfigurationPanel = lazy(() => import("./components/admin/ConfigurationPanel.jsx"));
+
+function RouteFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center font-mono text-sm">
+      LOADING...
+    </div>
+  );
+}
 
 function RequireAuth({ allowedRoles, children }) {
   const { user, loading } = useContext(AuthContext);
@@ -85,6 +105,7 @@ export default function App() {
   const { user, logout } = useContext(AuthContext);
 
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route path="/accept-invite" element={<InviteAcceptPage />} />
       <Route path="/support/:companyCode" element={<SupportPortalPage />} />
@@ -194,5 +215,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
+    </Suspense>
   );
 }

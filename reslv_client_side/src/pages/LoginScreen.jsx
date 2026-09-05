@@ -53,7 +53,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <div
+    <main
       className="h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-white text-left"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
@@ -146,7 +146,7 @@ export default function LoginScreen() {
             >
               {signup ? "Create account" : "Welcome back"}
             </h2>
-            <p className="text-[13px] text-[#9898B8] mt-1">
+            <p className="text-[13px] text-[#6E6E96] mt-1">
               {signup
                 ? "Join your support team on Reslv."
                 : "Sign in to your workspace."}
@@ -156,7 +156,7 @@ export default function LoginScreen() {
           <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-4">
             {signup && (
               <div>
-                <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-[#64648C] uppercase tracking-wider mb-1.5">
                   Full Name
                 </label>
                 <input type="text" placeholder="Alex Kim" className={inp} />
@@ -164,7 +164,7 @@ export default function LoginScreen() {
             )}
 
             <div>
-              <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-[#64648C] uppercase tracking-wider mb-1.5">
                 Work Email
               </label>
               <input
@@ -179,13 +179,13 @@ export default function LoginScreen() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider">
+                <label className="text-[11px] font-bold text-[#64648C] uppercase tracking-wider">
                   Password
                 </label>
                 {!signup && (
                   <button
                     type="button"
-                    className="text-[12px] text-[#80A8FF] hover:text-[#5B8AEE] font-medium transition-colors cursor-pointer"
+                    className="text-[12px] text-[#3D66CC] hover:text-[#5B8AEE] font-medium transition-colors cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -203,7 +203,8 @@ export default function LoginScreen() {
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#C8C8E0] hover:text-[#9898B8] transition-colors cursor-pointer"
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2.5 flex items-center justify-center text-[#C8C8E0] hover:text-[#9898B8] transition-colors cursor-pointer"
                   disabled={isLoading}
                 >
                   {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -236,7 +237,7 @@ export default function LoginScreen() {
 
           {!signup && (
             <div className="mt-3 lg:mt-4 p-2.5 lg:p-3 bg-[#F7F7FF] rounded-xl border border-[rgba(128,128,200,0.14)]">
-              <p className="text-[11px] text-[#A8A8C0] text-center mb-2">
+              <p className="text-[11px] text-[#64648C] text-center mb-2">
                 Demo credentials
               </p>
               <div className="flex flex-col gap-2">
@@ -277,18 +278,18 @@ export default function LoginScreen() {
             </div>
           )}
 
-          <p className="text-center text-[12px] text-[#B0B0CC] mt-3 lg:mt-5">
+          <p className="text-center text-[12px] text-[#6E6E96] mt-3 lg:mt-5">
             {signup ? "Already have an account? " : "Don't have an account? "}
             <button
               type="button"
               onClick={() => setSignup((v) => !v)}
-              className="text-[#80A8FF] hover:text-[#5B8AEE] font-semibold transition-colors cursor-pointer"
+              className="text-[#3D66CC] hover:text-[#5B8AEE] font-semibold transition-colors cursor-pointer"
             >
               {signup ? "Sign in" : "Sign up"}
             </button>
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
