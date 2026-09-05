@@ -54,13 +54,14 @@ export default function LoginScreen() {
 
   return (
     <div
-      className="min-h-screen w-full flex overflow-hidden bg-white text-left"
+      className="h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-white text-left"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
-      {/* LEFT DESIGN SIDEBAR SECTION — hidden on mobile/tablet, where there's
-          no room for a decorative panel alongside the form */}
+      {/* LEFT DESIGN SIDEBAR SECTION — stacks above the form on mobile/tablet,
+          scaled down (smaller text/spacing) so the whole panel still fits
+          without pushing the page into a scroll */}
       <div
-        className="hidden lg:flex w-[46%] flex-shrink-0 flex-col justify-between p-10 relative overflow-hidden select-none"
+        className="flex-shrink-0 flex w-full lg:w-[46%] flex-col gap-3 lg:gap-0 lg:justify-between px-5 py-4 sm:px-8 sm:py-6 lg:p-10 relative overflow-hidden select-none"
         style={{
           background:
             "linear-gradient(145deg, #C8C8FF 0%, #CEB5FF 40%, #9DC8E8 100%)",
@@ -78,56 +79,56 @@ export default function LoginScreen() {
         />
 
         <div className="relative">
-          <div className="flex items-center gap-3 mb-14">
-            <div className="w-10 h-10 rounded-2xl bg-white/25 backdrop-blur-xs flex items-center justify-center shadow-xs">
-              <Zap size={18} className="text-white" />
+          <div className="flex items-center gap-3 mb-2 lg:mb-14">
+            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-2xl bg-white/25 backdrop-blur-xs flex items-center justify-center shadow-xs">
+              <Zap size={16} className="text-white" />
             </div>
-            <span className="text-[22px] font-bold text-white tracking-tight">
+            <span className="text-[18px] lg:text-[22px] font-bold text-white tracking-tight">
               Reslv
             </span>
           </div>
 
-          <p className="text-[32px] font-extrabold tracking-tight text-white leading-tight max-w-[320px]">
+          <p className="text-[19px] lg:text-[32px] font-extrabold tracking-tight text-white leading-tight max-w-[320px]">
             Support that
-            <br />
-            feels human.
+            <br className="hidden lg:block" />
+            {" "}feels human.
           </p>
 
-          <p className="mt-4 text-[14px] text-white/65 leading-relaxed max-w-[320px]">
+          <p className="mt-1.5 lg:mt-4 text-[11px] lg:text-[14px] text-white/65 leading-snug lg:leading-relaxed max-w-[320px]">
             A calm, thoughtful workspace to resolve what matters — without the
             noise.
           </p>
         </div>
 
-        <div className="relative space-y-2.5">
+        <div className="relative space-y-1.5 lg:space-y-2.5">
           {[
             {
-              icon: <MessageSquare size={14} />,
+              icon: <MessageSquare size={12} />,
               label: "Multi-channel ticket management",
             },
             {
-              icon: <Shield size={14} />,
+              icon: <Shield size={12} />,
               label: "Escalation pipelines & SLA tracking",
             },
             {
-              icon: <Users size={14} />,
+              icon: <Users size={12} />,
               label: "Customer health & churn signals",
             },
             {
-              icon: <Activity size={14} />,
+              icon: <Activity size={12} />,
               label: "Real-time team performance insights",
             },
           ].map((f, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
+              className="flex items-center gap-2 lg:gap-3 px-3 py-1.5 lg:px-4 lg:py-2.5 rounded-lg lg:rounded-xl"
               style={{
                 background: "rgba(255,255,255,0.18)",
                 backdropFilter: "blur(8px)",
               }}
             >
-              <span className="text-white/80 flex-shrink-0">{f.icon}</span>
-              <span className="text-[13px] text-white font-medium">
+              <span className="text-white/80 flex-shrink-0 [&>svg]:w-3 [&>svg]:h-3 lg:[&>svg]:w-3.5 lg:[&>svg]:h-3.5">{f.icon}</span>
+              <span className="text-[11px] lg:text-[13px] text-white font-medium">
                 {f.label}
               </span>
             </div>
@@ -136,11 +137,11 @@ export default function LoginScreen() {
       </div>
 
       {/* RIGHT AUTH CONTROL FORM SECTION */}
-      <div className="flex-1 flex items-center justify-center bg-white px-6 py-10 sm:px-12">
+      <div className="flex-1 min-h-0 flex items-start lg:items-center justify-center bg-white px-6 py-4 sm:px-12 overflow-y-auto">
         <div className="w-full max-w-[340px]">
-          <div className="mb-8">
+          <div className="mb-4 lg:mb-8">
             <h2
-              className="text-[26px] font-semibold text-[#18182E]"
+              className="text-[22px] lg:text-[26px] font-semibold text-[#18182E]"
               style={{ letterSpacing: "-0.02em" }}
             >
               {signup ? "Create account" : "Welcome back"}
@@ -152,7 +153,7 @@ export default function LoginScreen() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-4">
             {signup && (
               <div>
                 <label className="block text-[11px] font-bold text-[#A8A8C0] uppercase tracking-wider mb-1.5">
@@ -234,7 +235,7 @@ export default function LoginScreen() {
           </form>
 
           {!signup && (
-            <div className="mt-4 p-3 bg-[#F7F7FF] rounded-xl border border-[rgba(128,128,200,0.14)]">
+            <div className="mt-3 lg:mt-4 p-2.5 lg:p-3 bg-[#F7F7FF] rounded-xl border border-[rgba(128,128,200,0.14)]">
               <p className="text-[11px] text-[#A8A8C0] text-center mb-2">
                 Demo credentials
               </p>
@@ -276,7 +277,7 @@ export default function LoginScreen() {
             </div>
           )}
 
-          <p className="text-center text-[12px] text-[#B0B0CC] mt-5">
+          <p className="text-center text-[12px] text-[#B0B0CC] mt-3 lg:mt-5">
             {signup ? "Already have an account? " : "Don't have an account? "}
             <button
               type="button"
