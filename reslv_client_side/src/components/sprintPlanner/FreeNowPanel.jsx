@@ -111,7 +111,7 @@ export default function FreeNowPanel() {
 
   return (
     <div className="bg-[var(--color-card)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] overflow-hidden">
-      <div className="px-6 py-4 border-b border-[var(--color-border)]">
+      <div className="px-3 sm:px-6 py-4 border-b border-[var(--color-border)]">
         <h3 className="text-sm font-semibold text-[var(--text-h)]">Free Right Now</h3>
 
         {!editingHours ? (

@@ -37,7 +37,7 @@ function SprintPlannerShell() {
   if (!isOverseer) {
     return (
       <div className="flex-1 w-full bg-[var(--background)] flex flex-col overflow-hidden">
-        <div className="px-6 pt-4 pb-3 flex items-center justify-between gap-3 border-b border-[var(--color-border)]">
+        <div className="px-3 sm:px-6 pt-4 pb-3 flex items-center justify-between gap-3 border-b border-[var(--color-border)]">
           <div>
             <h2 className="!mb-0 text-2xl font-bold tracking-tight text-[var(--text-h)]">
               My Tasks
@@ -47,7 +47,7 @@ function SprintPlannerShell() {
             </p>
           </div>
         </div>
-        <div className="px-6 pt-3">
+        <div className="px-3 sm:px-6 pt-3">
           <GoogleCalendarConnect />
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -59,7 +59,7 @@ function SprintPlannerShell() {
 
   return (
     <div className="flex-1 w-full bg-[var(--background)] flex flex-col overflow-hidden">
-      <div className="px-6 pt-4 pb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)]">
+      <div className="px-3 sm:px-6 pt-4 pb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2">
           <div>
             <h2 className="!mb-0 text-2xl font-bold tracking-tight text-[var(--text-h)]">
@@ -73,13 +73,13 @@ function SprintPlannerShell() {
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-500 px-6 pt-3">{error}</p>}
+      {error && <p className="text-xs text-red-500 px-3 sm:px-6 pt-3">{error}</p>}
 
-      <div className="px-6 pt-3">
+      <div className="px-3 sm:px-6 pt-3">
         <GoogleCalendarConnect />
       </div>
 
-      <div className="px-6 pt-3 flex items-center gap-1 border-b border-[var(--color-border)] overflow-x-auto">
+      <div className="px-3 sm:px-6 pt-3 flex items-center gap-1 border-b border-[var(--color-border)] overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}

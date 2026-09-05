@@ -118,7 +118,7 @@ export default function LoyaltyPointsPage() {
           </p>
         </div>
         {isAdmin && (
-          <div className="mt-4 sm:mt-0 flex gap-2">
+          <div className="mt-4 sm:mt-0 flex flex-wrap gap-2">
             <button
               onClick={() => setShowAdjust(true)}
               className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"

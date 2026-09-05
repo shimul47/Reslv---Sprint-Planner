@@ -40,7 +40,15 @@ export function CustomerPanel({ cx, ticket, tickets = [], onClose, onPriorityCha
   const rel = tickets.filter((t) => t.customer.id === cx.id).slice(0, 4);
 
   return (
-    <div className="w-[272px] flex-shrink-0 border-l border-[rgba(128,128,200,0.1)] bg-white flex flex-col overflow-hidden">
+    <>
+      {/* Backdrop — the panel becomes a full-screen overlay below md, where
+          there's no room for it alongside the ticket detail. */}
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+      />
+      <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[320px] md:z-auto md:relative md:inset-auto md:w-[272px] flex-shrink-0 border-l border-[rgba(128,128,200,0.1)] bg-white flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(128,128,200,0.1)] flex-shrink-0">
         <span className="text-[13px] font-semibold text-[#18182E]">
           Customer Profile
@@ -218,7 +226,8 @@ export function CustomerPanel({ cx, ticket, tickets = [], onClose, onPriorityCha
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

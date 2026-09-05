@@ -591,7 +591,8 @@ export default function SupportFeedbackPage() {
         .sf-agent-row {
           display: flex;
           align-items: center;
-          gap: 14px;
+          flex-wrap: wrap;
+          gap: 8px 14px;
           padding: 12px 0;
           border-bottom: 1px solid #f3f4f6;
         }
@@ -947,7 +948,7 @@ export default function SupportFeedbackPage() {
               
               {/* Pagination Controls */}
               {totalPages > 1 && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 16, borderTop: "1px solid #e8ecf1" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 16, paddingTop: 16, borderTop: "1px solid #e8ecf1" }}>
                   <div style={{ fontSize: 13, color: "#6b7280" }}>
                     Showing {(currentPage - 1) * ticketsPerPage + 1} to {Math.min(currentPage * ticketsPerPage, filteredTickets.length)} of {filteredTickets.length} tickets
                   </div>

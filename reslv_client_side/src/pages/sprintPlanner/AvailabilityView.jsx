@@ -4,7 +4,7 @@ import TeamAvailabilityPanel from "../../components/sprintPlanner/TeamAvailabili
 
 export default function AvailabilityView() {
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-3 sm:p-6 flex flex-col gap-6">
       <div className="flex items-center gap-2">
         <HelpTip title="Availability">
           Shows each teammate's real Google Calendar busy time, so you can plan sprint capacity

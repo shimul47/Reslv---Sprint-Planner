@@ -79,7 +79,7 @@ export default function SprintPublishBar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 px-6 py-3 border-b border-[var(--color-border)]">
+    <div className="flex flex-wrap items-center gap-3 px-3 sm:px-6 py-3 border-b border-[var(--color-border)]">
       <div className="relative">
         <select
           value={activeSprintId || ""}

@@ -130,7 +130,7 @@ export default function SegmentsPanel({
 
   return (
     <div className="bg-[var(--background)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] overflow-hidden mt-8">
-      <div className="px-6 py-4 border-b border-[var(--color-border)]">
+      <div className="px-3 sm:px-6 py-4 border-b border-[var(--color-border)]">
         <h2 className="text-xl font-semibold">Teams</h2>
         <p className="text-sm opacity-70 mt-1">
           Set up your teams once (Web Team, QA Team, UI/UX etc.) and every
@@ -138,7 +138,7 @@ export default function SegmentsPanel({
         </p>
       </div>
 
-      <div className="p-6 flex flex-col gap-4">
+      <div className="p-3 sm:p-6 flex flex-col gap-4">
         {error && <p className="text-sm text-red-500">{error}</p>}
 
         <form

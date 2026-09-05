@@ -57,7 +57,7 @@ export default function PerformanceAnalyticsView() {
   );
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-3 sm:p-6 flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <HelpTip title="Performance">
           Compares each completed task's approximate estimate against the actual hours the

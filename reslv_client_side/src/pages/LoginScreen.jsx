@@ -54,12 +54,13 @@ export default function LoginScreen() {
 
   return (
     <div
-      className="h-screen w-full flex overflow-hidden bg-white text-left"
+      className="min-h-screen w-full flex overflow-hidden bg-white text-left"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
-      {/* LEFT DESIGN SIDEBAR SECTION */}
+      {/* LEFT DESIGN SIDEBAR SECTION — hidden on mobile/tablet, where there's
+          no room for a decorative panel alongside the form */}
       <div
-        className="w-[46%] flex-shrink-0 flex flex-col justify-between p-10 relative overflow-hidden select-none"
+        className="hidden lg:flex w-[46%] flex-shrink-0 flex-col justify-between p-10 relative overflow-hidden select-none"
         style={{
           background:
             "linear-gradient(145deg, #C8C8FF 0%, #CEB5FF 40%, #9DC8E8 100%)",
@@ -135,7 +136,7 @@ export default function LoginScreen() {
       </div>
 
       {/* RIGHT AUTH CONTROL FORM SECTION */}
-      <div className="flex-1 flex items-center justify-center bg-white px-12">
+      <div className="flex-1 flex items-center justify-center bg-white px-6 py-10 sm:px-12">
         <div className="w-full max-w-[340px]">
           <div className="mb-8">
             <h2

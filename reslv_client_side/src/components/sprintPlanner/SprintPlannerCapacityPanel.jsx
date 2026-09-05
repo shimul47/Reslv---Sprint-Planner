@@ -110,7 +110,7 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
 
   return (
     <div className="bg-[var(--background)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] overflow-hidden mt-8">
-      <div className="px-6 py-4 border-b border-[var(--color-border)] text-center">
+      <div className="px-3 sm:px-6 py-4 border-b border-[var(--color-border)] text-center">
         <h2 className="text-xl font-semibold">Sprint Planner Capacity</h2>
         <p className="text-sm opacity-70 mt-1">
           Set the default sprint-hour allowance for the company, and optionally override it for one
@@ -118,7 +118,7 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
         </p>
       </div>
 
-      <div className="p-6 flex flex-col items-center gap-6">
+      <div className="p-3 sm:p-6 flex flex-col items-center gap-6">
         {loading ? (
           <p className="text-sm opacity-60">Loading…</p>
         ) : error ? (
@@ -129,9 +129,9 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
           <div className="w-full max-w-md mx-auto flex flex-col gap-6">
             <form
               onSubmit={saveDefault}
-              className="grid grid-cols-[9rem_9rem_auto] items-center gap-3"
+              className="grid grid-cols-1 sm:grid-cols-[9rem_9rem_auto] items-center gap-3"
             >
-              <label className="text-sm font-medium opacity-70 text-right">
+              <label className="text-sm font-medium opacity-70 sm:text-right">
                 Default hours per sprint
               </label>
               <input
@@ -156,8 +156,8 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
                 <p className="text-sm opacity-60">No sprints yet.</p>
               ) : (
                 <div className="flex flex-col gap-3 w-full">
-                  <div className="grid grid-cols-[9rem_9rem_auto] items-center gap-3">
-                    <label className="text-sm opacity-70 text-right">Sprint</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-[9rem_9rem_auto] items-center gap-3">
+                    <label className="text-sm opacity-70 sm:text-right">Sprint</label>
                     <select
                       value={selectedSprintId}
                       onChange={(e) => setSelectedSprintId(e.target.value)}
@@ -169,11 +169,11 @@ export default function SprintPlannerCapacityPanel({ companyId }) {
                         </option>
                       ))}
                     </select>
-                    <span />
+                    <span className="hidden sm:block" />
                   </div>
 
-                  <div className="grid grid-cols-[9rem_9rem_auto] items-center gap-3">
-                    <label className="text-sm opacity-70 text-right">Hours for this sprint</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-[9rem_9rem_auto] items-center gap-3">
+                    <label className="text-sm opacity-70 sm:text-right">Hours for this sprint</label>
                     <input
                       type="number"
                       min="0"

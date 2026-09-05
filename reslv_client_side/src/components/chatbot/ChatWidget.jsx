@@ -154,7 +154,7 @@ export default function ChatWidget({ apiRoot, wsRoot, companyCode, token, onHand
   }
 
   return (
-    <div className="fixed bottom-28 right-6 w-[340px] h-[460px] bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-xl)] shadow-[var(--shadow)] flex flex-col z-50 overflow-hidden">
+    <div className="fixed inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-28 sm:right-6 w-full sm:w-[340px] h-[80vh] sm:h-[460px] max-h-[520px] sm:max-h-none bg-[var(--color-card)] border border-[var(--color-border)] rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] shadow-[var(--shadow)] flex flex-col z-50 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-muted)]">
         <div className="flex items-center gap-2 text-[var(--text-h)] text-sm font-semibold">
           <img src={chatbotMascot} alt="" className="w-7 h-7 object-contain" />

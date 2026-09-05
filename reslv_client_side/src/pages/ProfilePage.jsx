@@ -483,7 +483,7 @@ export default function ProfilePage() {
                 {myScore && (
                   <div className="mt-10 pt-8 border-t border-[var(--color-border)]">
                     <h3 className="text-lg font-bold mb-4">My Satisfaction Score</h3>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                       <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 min-w-[120px]">
                         <div className="text-4xl font-bold">{myScore.avgRating}</div>
                         <div className="text-sm font-medium mt-1 text-[var(--color-foreground)] opacity-70">out of 5</div>
@@ -507,7 +507,7 @@ export default function ProfilePage() {
                 {loyaltySummary && (
                   <div className="mt-10 pt-8 border-t border-[var(--color-border)]">
                     <h3 className="text-lg font-bold mb-4">Loyalty Points</h3>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                       <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 min-w-[120px]">
                         <div className="text-4xl font-bold">{loyaltySummary.availablePoints.toLocaleString()}</div>
                         <div className="text-sm font-medium mt-1 text-[var(--color-foreground)] opacity-70">available</div>
