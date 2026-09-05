@@ -1,0 +1,7 @@
+# Reslv
+
+> Reslv is a sprint planning and customer support workspace: multi-channel
+> ticket management, escalation pipelines with SLA tracking, customer health
+> signals, and real-time team performance insights.
+
+- [Reslv](https://reslv.vercel.app/): Sign in to the workspace.
