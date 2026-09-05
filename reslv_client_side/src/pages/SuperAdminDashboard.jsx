@@ -642,7 +642,7 @@ export default function SuperAdminDashboard() {
                       <Plus size={16} className="text-[#00FF41]" /> Assign &
                       Provision Company Admin Node
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label className="text-[10px] font-black text-emerald-500/60 uppercase tracking-wider">
                         Company Scope
                       </label>
@@ -658,7 +658,7 @@ export default function SuperAdminDashboard() {
                             }));
                           }
                         }}
-                        className="bg-black/80 border border-[#00FF41]/30 focus:border-[#00FF41] rounded p-2 text-xs text-white outline-none font-mono focus:ring-1 focus:ring-[#00FF41] min-w-[220px]"
+                        className="bg-black/80 border border-[#00FF41]/30 focus:border-[#00FF41] rounded p-2 text-xs text-white outline-none font-mono focus:ring-1 focus:ring-[#00FF41] w-full sm:w-auto sm:min-w-[220px]"
                       >
                         <option value="all">All Companies</option>
                         {companies.map((company) => (
@@ -743,6 +743,7 @@ export default function SuperAdminDashboard() {
 
               {/* Matrix Operational Database High-Visibility Grid Sheet */}
               <div className="bg-black/60 backdrop-blur-md rounded-xl border border-[#00FF41]/30 overflow-hidden shadow-2xl">
+                <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-black/80 text-[#00FF41] text-[10px] uppercase font-black tracking-widest border-b border-[#00FF41]/30 select-none drop-shadow-[0_0_3px_rgba(0,255,65,0.4)]">
                     <tr>
@@ -936,6 +937,7 @@ export default function SuperAdminDashboard() {
                       ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}

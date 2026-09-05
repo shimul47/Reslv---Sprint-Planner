@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
-import { Users } from "lucide-react";
+import { ChevronLeft, Users } from "lucide-react";
 import ChatWidget from "../components/chatbot/ChatWidget.jsx";
 import { renderMessageText } from "../utils/chatFormatting.jsx";
 
@@ -607,10 +607,17 @@ export default function SupportPortalPage() {
       ? companyCode.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
       : "Support");
 
+  // Below md there's only room for one of the ticket list or the active
+  // conversation/compose view at a time — mirrors the InboxView master-detail
+  // collapse pattern (list <-> detail, with a back button to return).
+  const showDetailOnMobile = isComposing || Boolean(activeTicket);
+
   return (
     <div className="h-screen overflow-hidden bg-[var(--background)] text-[var(--color-foreground)] flex">
       {/* Sidebar */}
-      <div className="w-80 flex-shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)] flex flex-col min-h-0">
+      <div
+        className={`${showDetailOnMobile ? "hidden md:flex" : "flex"} w-full md:w-80 flex-shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)] flex-col min-h-0`}
+      >
         {/* Navbar / brand header */}
         <div className="px-6 pt-5 pb-4 border-b border-[var(--color-border)] flex-shrink-0 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-[var(--accent-foreground)] flex items-center justify-center text-sm font-bold flex-shrink-0">
@@ -711,10 +718,21 @@ export default function SupportPortalPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 min-h-0 flex flex-col bg-[var(--background)]">
+      <div
+        className={`${showDetailOnMobile ? "flex" : "hidden md:flex"} flex-1 min-h-0 flex-col bg-[var(--background)]`}
+      >
         {isComposing ? (
-          <div className="flex-1 min-h-0 overflow-y-auto p-10 max-w-2xl mx-auto w-full">
-            <h2 className="text-2xl font-semibold mb-6 text-[var(--text-h)]">Create a New Ticket</h2>
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 max-w-2xl mx-auto w-full">
+            <div className="flex items-center gap-2 mb-6">
+              <button
+                onClick={() => setIsComposing(false)}
+                aria-label="Back to ticket list"
+                className="md:hidden -ml-1.5 w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text)] hover:bg-[var(--color-muted)] transition-colors flex-shrink-0"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <h2 className="text-2xl font-semibold text-[var(--text-h)]">Create a New Ticket</h2>
+            </div>
             {error && (
               <div className="mb-4 rounded-[var(--radius-md)] border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-600">
                 {error}
@@ -768,14 +786,23 @@ export default function SupportPortalPage() {
           </div>
         ) : activeTicket ? (
           <>
-            <div className="flex-shrink-0 p-6 border-b border-[var(--color-border)] bg-[var(--color-card)] flex justify-between items-center">
-              <div className="min-w-0">
-                <p className="text-xl font-semibold truncate text-[var(--text-h)]">
-                  {activeTicket.subject || activeTicket.title}
-                </p>
-                <p className="text-sm text-[var(--text)] opacity-60 mt-1">
-                  Ticket ID: {activeTicket.ticketNumber || activeTicket._id}
-                </p>
+            <div className="flex-shrink-0 p-4 sm:p-6 border-b border-[var(--color-border)] bg-[var(--color-card)] flex justify-between items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => setActiveTicket(null)}
+                  aria-label="Back to ticket list"
+                  className="md:hidden -ml-1.5 w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text)] hover:bg-[var(--color-muted)] transition-colors flex-shrink-0"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-xl font-semibold truncate text-[var(--text-h)]">
+                    {activeTicket.subject || activeTicket.title}
+                  </p>
+                  <p className="text-sm text-[var(--text)] opacity-60 mt-1">
+                    Ticket ID: {activeTicket.ticketNumber || activeTicket._id}
+                  </p>
+                </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <span

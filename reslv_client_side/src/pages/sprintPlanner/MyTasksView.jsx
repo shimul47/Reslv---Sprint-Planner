@@ -95,7 +95,7 @@ export default function MyTasksView() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-3 sm:p-6 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <button
           onClick={load}
@@ -113,7 +113,7 @@ export default function MyTasksView() {
             Incoming task requests
           </p>
           {incoming.map((r) => (
-            <div key={r._id} className="flex items-center justify-between gap-3 text-xs">
+            <div key={r._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div>
                 <span className="font-semibold text-[var(--text-h)]">{r.fromUserId?.name}</span>{" "}
                 wants to hand off "{r.taskId?.title}"
@@ -183,7 +183,7 @@ export default function MyTasksView() {
                             {task.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-1.5 mb-3 relative z-10">
+                        <div className="flex items-center gap-1.5 mb-3 relative z-10 flex-wrap">
                           <span className="text-[9px] font-bold bg-black/15 px-1.5 py-0.5 rounded-xs uppercase">
                             {TASK_TYPE_LABELS[task.taskType] || task.taskType}
                           </span>

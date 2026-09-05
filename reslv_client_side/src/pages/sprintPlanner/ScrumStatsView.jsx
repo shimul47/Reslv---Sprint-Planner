@@ -32,7 +32,7 @@ export default function ScrumStatsView() {
     : [];
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-3 sm:p-6 flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <HelpTip title="Sprint Stats">
           Cycle time is measured from a task's creation to when it's marked done. Total hours

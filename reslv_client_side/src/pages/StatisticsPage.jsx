@@ -151,11 +151,11 @@ export default function StatisticsPage() {
             tied to sprints, so ticket metrics only apply in date-range mode.
           </HelpTip>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={sprintId}
             onChange={(e) => setSprintId(e.target.value)}
-            className="text-xs bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-1.5 focus:outline-hidden"
+            className="text-xs bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-1.5 focus:outline-hidden w-full sm:w-auto"
           >
             <option value="">All sprints (date range)</option>
             {sprints.map((s) => (
@@ -169,7 +169,7 @@ export default function StatisticsPage() {
             onChange={(e) => setRangeId(e.target.value)}
             disabled={isSprintMode}
             title={isSprintMode ? "Clear the sprint filter to use a date range" : undefined}
-            className="text-xs bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-1.5 focus:outline-hidden disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-xs bg-[var(--color-card)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-3 py-1.5 focus:outline-hidden disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto"
           >
             {RANGE_PRESETS.map((r) => (
               <option key={r.id} value={r.id}>

@@ -85,7 +85,7 @@ export default function TeamAvailabilityPanel() {
 
   return (
     <div className="bg-[var(--color-card)] rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow)] overflow-hidden">
-      <div className="px-6 py-4 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-3">
+      <div className="px-3 sm:px-6 py-4 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-[var(--text-h)]">Team Calendar</h3>
           <p className="text-xs opacity-70 mt-0.5">
@@ -114,7 +114,7 @@ export default function TeamAvailabilityPanel() {
         </div>
       </div>
 
-      <div className="p-4 flex flex-col divide-y divide-[var(--color-border)]">
+      <div className="p-3 sm:p-4 flex flex-col divide-y divide-[var(--color-border)]">
         {error && <p className="text-xs text-red-500 pb-3">{error}</p>}
         {loading ? (
           <p className="text-xs opacity-60 py-3">Loading…</p>

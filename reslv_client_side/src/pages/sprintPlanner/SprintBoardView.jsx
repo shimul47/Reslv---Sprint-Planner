@@ -172,7 +172,7 @@ export default function SprintBoardView() {
         }}
       />
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-3 sm:p-6">
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
         {segments.length === 0 && (

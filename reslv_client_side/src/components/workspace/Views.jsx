@@ -3,6 +3,7 @@ import {
   Activity,
   BarChart2,
   CheckCircle,
+  ChevronLeft,
   Inbox,
   Loader2,
   MoreHorizontal,
@@ -177,6 +178,7 @@ export function TicketDetail({
   onSaveNote,
   onAssign,
   onRefresh,
+  onBack,
 }) {
   const { user } = useContext(AuthContext);
   const [tab, setTab] = useState("thread");
@@ -250,8 +252,17 @@ export function TicketDetail({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 px-6 py-2.5 border-b border-[rgba(128,128,200,0.1)] bg-white">
-        <div className="flex items-start gap-4">
+      <div className="flex-shrink-0 px-4 sm:px-6 py-2.5 border-b border-[rgba(128,128,200,0.1)] bg-white">
+        <div className="flex items-start gap-2 sm:gap-4">
+          {onBack && (
+            <button
+              onClick={onBack}
+              aria-label="Back to ticket list"
+              className="md:hidden flex-shrink-0 w-8 h-8 -ml-1.5 flex items-center justify-center rounded-xl text-[#6B6B90] hover:bg-[#F0F0FF] transition-colors"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          )}
           <div className="flex-1 min-w-0">
             <h2 className="text-[15px] font-semibold text-[#18182E] leading-snug">
               {ticket.subject}
@@ -826,7 +837,9 @@ export function InboxView({ mode = "active" }) {
 
   return (
     <div className="flex flex-1 h-full overflow-hidden">
-      <div className="w-[300px] flex-shrink-0 border-r border-[rgba(128,128,200,0.1)] flex flex-col bg-white overflow-hidden">
+      <div
+        className={`${selected ? "hidden md:flex" : "flex"} w-full md:w-[300px] flex-shrink-0 border-r border-[rgba(128,128,200,0.1)] flex-col bg-white overflow-hidden`}
+      >
         <div className="px-3 pt-3 pb-2 space-y-2 border-b border-[rgba(128,128,200,0.08)]">
           {isAdmin && !isResolvedMode && (
             <button
@@ -982,6 +995,7 @@ export function InboxView({ mode = "active" }) {
               onSaveNote={handleSaveNote}
               onAssign={handleAssign}
               onRefresh={refreshTickets}
+              onBack={() => setSelectedId(null)}
             />
           </div>
           {showCX && (
@@ -995,7 +1009,7 @@ export function InboxView({ mode = "active" }) {
           )}
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-center bg-[#F7F7FF]">
+        <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center bg-[#F7F7FF]">
           <div className="w-16 h-16 rounded-2xl bg-[#EEF0FF] flex items-center justify-center mb-4">
             {isResolvedMode ? (
               <CheckCircle size={26} className="text-[#3DB870]" />

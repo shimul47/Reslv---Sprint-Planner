@@ -92,7 +92,7 @@ export default function BillingPage() {
   const isActiveSub = ["active", "trialing"].includes(subscription?.status);
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-8">
       <h1 className="text-2xl font-semibold mb-1">Billing</h1>
       <p className="text-sm text-gray-500 mb-6">
         Manage your company's subscription plan.
@@ -167,7 +167,7 @@ export default function BillingPage() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {tiers.map((tier) => {
               const isCurrent = isActiveSub && currentPlan?.id === tier.id;
               const price = billingCycle === "monthly" ? tier.monthlyUsd : tier.yearlyUsd;

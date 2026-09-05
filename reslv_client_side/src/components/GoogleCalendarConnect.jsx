@@ -74,7 +74,7 @@ export default function GoogleCalendarConnect() {
         </Banner>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">Google Calendar</p>
           {loading ? (

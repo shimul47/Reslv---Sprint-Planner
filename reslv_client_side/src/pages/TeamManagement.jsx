@@ -244,7 +244,7 @@ export default function TeamManagement() {
       : Math.max(inviteLimit - inviteUsage, 0);
 
   return (
-    <div className="w-full p-8 overflow-y-auto h-full text-[var(--color-foreground)]">
+    <div className="w-full p-4 sm:p-8 overflow-y-auto h-full text-[var(--color-foreground)]">
       {/* Header Section */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>

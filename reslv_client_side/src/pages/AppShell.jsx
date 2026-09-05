@@ -157,7 +157,12 @@ export default function AppShell({ onLogout, user }) {
   const { activeRole } = useContext(AuthContext);
 
   // -- Sidebar visibility (manual toggle only, no auto-hide) --
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  // Starts closed on mobile/tablet viewports (it would otherwise cover the
+  // whole screen as an overlay) and open on desktop, matching the previous
+  // always-open default there.
+  const [sidebarVisible, setSidebarVisible] = useState(
+    () => typeof window !== "undefined" && window.innerWidth >= 1024,
+  );
   const revealSidebar = () => setSidebarVisible(true);
   const hideSidebarNow = () => setSidebarVisible(false);
 
@@ -264,11 +269,30 @@ export default function AppShell({ onLogout, user }) {
     return "Application";
   };
 
+  // On mobile/tablet the sidebar is an overlay drawer, so a nav click should
+  // also close it; on desktop it stays open (matches the old always-open
+  // behavior there).
+  const closeSidebarOnMobileNav = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      hideSidebarNow();
+    }
+  };
+
   return (
     <div className="relative h-screen w-full bg-[#f8f9fa] dark:bg-[var(--background)] text-[var(--color-foreground)] overflow-hidden font-sans">
+      {/* Backdrop behind the sidebar drawer on mobile/tablet, where it overlays
+          content instead of pushing it. */}
+      {sidebarVisible && (
+        <div
+          onClick={hideSidebarNow}
+          aria-hidden="true"
+          className="fixed inset-0 bg-black/40 z-20 lg:hidden"
+        />
+      )}
+
       {/* 1. PERSISTENT SIDEBAR (manual show/hide via the toggle button) */}
       <aside
-        className={`fixed inset-y-0 left-0 w-64 border-r border-[var(--color-border)] bg-white dark:bg-[var(--background)] flex flex-col justify-between z-30 shadow-xl transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 w-72 sm:w-64 border-r border-[var(--color-border)] bg-white dark:bg-[var(--background)] flex flex-col justify-between z-30 shadow-xl transition-transform duration-300 ease-in-out ${
           sidebarVisible ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -310,6 +334,7 @@ export default function AppShell({ onLogout, user }) {
                 <Link
                   key={item.label}
                   to={item.path}
+                  onClick={closeSidebarOnMobileNav}
                   className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     item.active
                       ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
@@ -327,6 +352,7 @@ export default function AppShell({ onLogout, user }) {
         <div className="p-4 border-t border-[var(--color-border)]">
           <Link
             to="/profile"
+            onClick={closeSidebarOnMobileNav}
             className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 ${
               isProfile
                 ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
@@ -346,15 +372,16 @@ export default function AppShell({ onLogout, user }) {
         </div>
       </aside>
 
-      {/* 2. MAIN CONTENT AREA — shifts right to make room when the sidebar is shown, instead of the sidebar overlaying on top of it */}
+      {/* 2. MAIN CONTENT AREA — shifts right to make room for the sidebar only
+          on large screens; on mobile/tablet the sidebar overlays on top instead */}
       <div
-        className={`h-full flex flex-col min-w-0 overflow-hidden relative transition-[margin-left,width] duration-300 ease-in-out ${
-          sidebarVisible ? "ml-64 w-[calc(100%-16rem)]" : "ml-0 w-full"
+        className={`h-full flex flex-col min-w-0 overflow-hidden relative transition-[margin-left,width] duration-300 ease-in-out ml-0 w-full ${
+          sidebarVisible ? "lg:ml-64 lg:w-[calc(100%-16rem)]" : ""
         }`}
       >
         {/* Top Header */}
-        <header className="h-16 flex-shrink-0 bg-white dark:bg-[var(--background)] border-b border-[var(--color-border)] px-6 flex items-center justify-between z-10 shadow-sm">
-          <div className="flex items-center gap-4">
+        <header className="h-16 flex-shrink-0 bg-white dark:bg-[var(--background)] border-b border-[var(--color-border)] px-3 sm:px-6 flex items-center justify-between gap-2 z-10 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             {!sidebarVisible && (
               <button
                 type="button"
@@ -365,15 +392,15 @@ export default function AppShell({ onLogout, user }) {
                 <ChevronRight size={18} />
               </button>
             )}
-            <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            <h1 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
               {getPageTitle()}
             </h1>
           </div>
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2 sm:gap-5 flex-shrink-0">
             {/* Role Switcher Inject */}
             {user && (
-              <div className="flex items-center gap-3 border-r border-[var(--color-border)] pr-5">
+              <div className="hidden sm:flex items-center gap-3 border-r border-[var(--color-border)] pr-3 sm:pr-5">
                 <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                   Role:
                 </span>
@@ -394,7 +421,7 @@ export default function AppShell({ onLogout, user }) {
                   {user?.email}
                 </div>
               </div>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-blue-400 flex items-center justify-center text-white font-bold shadow-sm">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-blue-400 flex items-center justify-center text-white font-bold shadow-sm flex-shrink-0">
                 {user?.name?.charAt(0).toUpperCase() || "U"}
               </div>
             </div>
@@ -404,13 +431,13 @@ export default function AppShell({ onLogout, user }) {
         {/* Dynamic Canvas */}
         <main
           className={`flex-1 overflow-y-auto bg-[#f8f9fa] dark:bg-black/20 ${
-            isDashboard ? "p-6 md:p-8" : "p-3 md:p-4"
+            isDashboard ? "p-4 sm:p-6 md:p-8" : "p-3 md:p-4"
           }`}
         >
           {isDashboard ? (
             <div key="dashboard" className="max-w-5xl mx-auto animate-in fade-in duration-500">
-              <header className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              <header className="mb-6 sm:mb-8">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   Good afternoon, {user?.name.split(" ")[0]}
                 </h2>
                 <p className="text-gray-500 dark:text-gray-400">
@@ -418,7 +445,7 @@ export default function AppShell({ onLogout, user }) {
                 </p>
               </header>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Tickets Widget */}
                 {canSeeTickets && (
                   <div
