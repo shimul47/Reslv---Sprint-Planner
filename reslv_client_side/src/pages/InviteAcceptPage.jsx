@@ -131,10 +131,11 @@ export default function InviteAcceptPage() {
             </label>
             <input
               type="password"
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-emerald-300/60"
-              placeholder="Create a password"
+              placeholder="Create a password (min 8 characters)"
             />
           </div>
 
@@ -144,6 +145,7 @@ export default function InviteAcceptPage() {
             </label>
             <input
               type="password"
+              minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-emerald-300/60"

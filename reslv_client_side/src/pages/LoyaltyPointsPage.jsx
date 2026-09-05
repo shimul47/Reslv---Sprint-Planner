@@ -34,6 +34,7 @@ export default function LoyaltyPointsPage() {
   const [redeemAmount, setRedeemAmount] = useState("");
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const fetchData = async () => {
     setLoading(true);
@@ -60,29 +61,32 @@ export default function LoyaltyPointsPage() {
 
   const handleUpdateSettings = async (e) => {
     e.preventDefault();
+    setModalError("");
     try {
       await api.put("/loyalty/settings", { pointsPerDollar: Number(pointsPerDollar) });
       setShowSettings(false);
       fetchData();
     } catch (err) {
-      alert("Failed to update settings");
+      setModalError(err.response?.data?.message || "Failed to update settings.");
     }
   };
 
   const handleRedeem = async (e) => {
     e.preventDefault();
+    setModalError("");
     try {
       await api.post("/loyalty/redeem", { points: Number(redeemAmount) });
       setShowRedeem(false);
       setRedeemAmount("");
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to redeem points");
+      setModalError(err.response?.data?.message || "Failed to redeem points.");
     }
   };
 
   const handleAdjust = async (e) => {
     e.preventDefault();
+    setModalError("");
     try {
       await api.post("/loyalty/adjust", { 
         points: Number(adjustAmount),
@@ -93,7 +97,7 @@ export default function LoyaltyPointsPage() {
       setAdjustReason("");
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to adjust points");
+      setModalError(err.response?.data?.message || "Failed to adjust points.");
     }
   };
 
@@ -120,21 +124,21 @@ export default function LoyaltyPointsPage() {
         {isAdmin && (
           <div className="mt-4 sm:mt-0 flex flex-wrap gap-2">
             <button
-              onClick={() => setShowAdjust(true)}
+              onClick={() => { setShowAdjust(true); setModalError(""); }}
               className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
             >
               <ArrowRightLeft className="w-4 h-4" />
               Adjust
             </button>
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => { setShowSettings(true); setModalError(""); }}
               className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
             >
               <Settings className="w-4 h-4" />
               Settings
             </button>
             <button
-              onClick={() => setShowRedeem(true)}
+              onClick={() => { setShowRedeem(true); setModalError(""); }}
               className="flex items-center gap-2 px-4 py-1.5 text-sm rounded bg-black text-white hover:bg-gray-800 transition-colors"
             >
               <Gift className="w-4 h-4" />
@@ -314,6 +318,9 @@ export default function LoyaltyPointsPage() {
                   How many points does a customer need to get $1 off their next renewal? (Default: 100)
                 </p>
               </div>
+              {modalError && (
+                <p className="text-sm text-red-600 mt-2">{modalError}</p>
+              )}
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={() => setShowSettings(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800">Save</button>
@@ -349,6 +356,9 @@ export default function LoyaltyPointsPage() {
                   (${(summary?.availablePoints / summary?.pointsPerDollar).toLocaleString(undefined, {minimumFractionDigits: 2})})
                 </p>
               </div>
+              {modalError && (
+                <p className="text-sm text-red-600 mt-2">{modalError}</p>
+              )}
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={() => setShowRedeem(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">Redeem</button>
@@ -389,6 +399,9 @@ export default function LoyaltyPointsPage() {
                   placeholder="e.g. Manual correction"
                 />
               </div>
+              {modalError && (
+                <p className="text-sm text-red-600 mt-2">{modalError}</p>
+              )}
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={() => setShowAdjust(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800">Adjust</button>

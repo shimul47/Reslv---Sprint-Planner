@@ -78,8 +78,8 @@ export default function TeamManagement() {
           );
           setInviteCompanyId(
             matchingCompany?._id ||
-              companyResponse.data.companies[0]?._id ||
-              "",
+            companyResponse.data.companies[0]?._id ||
+            "",
           );
         }
       } catch (err) {
@@ -136,6 +136,9 @@ export default function TeamManagement() {
     setError(null);
     setSuccess(null);
 
+    // 1. Save the old value BEFORE changing it
+    const prevUsage = inviteUsage;
+
     try {
       const response = await api.post("/team/invite", {
         email: inviteEmail,
@@ -157,13 +160,15 @@ export default function TeamManagement() {
       };
 
       setTeam((prev) => [...prev, newMember]);
-      setInviteUsage((prev) => prev + 1);
+      setInviteUsage((prev) => prev + 1);   // optimistic increment
       setInviteEmail("");
       setInviteRoles(["agent"]);
       setInviteLimitInput("");
       setSuccess("Invitation sent successfully!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
+      // 2. Restore the old value on failure
+      setInviteUsage(prevUsage);
       setError(err.response?.data?.message || err.message);
     } finally {
       setIsSubmitting(false);
@@ -257,11 +262,10 @@ export default function TeamManagement() {
         {!isSuperAdmin && (
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <div
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-[var(--radius-md)] text-sm ${
-                invitesLeft === 0
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-[var(--radius-md)] text-sm ${invitesLeft === 0
                   ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                   : "bg-[var(--color-secondary)]"
-              }`}
+                }`}
             >
               <span className="opacity-70">Invites used</span>
               <span className="font-bold">
@@ -358,11 +362,10 @@ export default function TeamManagement() {
                 return (
                   <label
                     key={role.id}
-                    className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-[var(--radius-md)] ${
-                      isLockedSprintPlanner
+                    className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-[var(--radius-md)] ${isLockedSprintPlanner
                         ? "bg-[var(--color-secondary)]/50 opacity-60 cursor-not-allowed"
                         : "bg-[var(--color-secondary)] cursor-pointer"
-                    }`}
+                      }`}
                   >
                     <input
                       type="checkbox"
@@ -464,11 +467,10 @@ export default function TeamManagement() {
 
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        member.status === "Active"
+                      className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${member.status === "Active"
                           ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
                           : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                      }`}
+                        }`}
                     >
                       {member.status}
                     </span>

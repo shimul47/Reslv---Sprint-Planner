@@ -20,10 +20,6 @@ function SprintPlannerShell() {
   const navigate = useNavigate();
   const { isOverseer, error } = useSprintPlanner();
 
-// sync fork test 1
-// sync fork test 2
-// sync fork final test
-
   const activeTab =
     TABS.find((t) => location.pathname.endsWith(`/${t.path}`))?.id || "board";
 
@@ -88,11 +84,10 @@ function SprintPlannerShell() {
           <button
             key={tab.id}
             onClick={() => navigate(tab.path)}
-            className={`text-xs font-semibold px-3 py-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === tab.id
+            className={`text-xs font-semibold px-3 py-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === tab.id
                 ? "border-[var(--color-primary)] text-[var(--text-h)]"
                 : "border-transparent text-[var(--text)] opacity-70 hover:opacity-100"
-            }`}
+              }`}
           >
             {tab.label}
           </button>
